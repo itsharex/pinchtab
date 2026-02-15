@@ -182,6 +182,30 @@ All via environment variables:
 
 Playwright MCP, OpenClaw, and Browser Use all default to accessibility trees for the same reason.
 
+## Token Efficiency — Real Numbers
+
+Measured on a live search results page:
+
+| Method | Size | ~Tokens |
+|---|---|---|
+| Full a11y snapshot | 42 KB | 10,500 |
+| Interactive-only (`?filter=interactive`) | 14 KB | 3,600 |
+| Text extraction (`/text`) | 3 KB | 800 |
+| Screenshot (vision model) | — | ~2,000 |
+
+For read-heavy tasks (monitoring feeds, scraping search results), `/text` at ~800 tokens per page is **5x cheaper** than a full snapshot and **13x cheaper** than the same page via screenshots.
+
+**Example: 50-page search monitoring task**
+
+| Approach | Tokens | Est. cost |
+|---|---|---|
+| Screenshots (vision) | ~100,000 | $0.30 |
+| Full snapshots | ~525,000 | $0.16 |
+| Pinchtab `/text` | ~40,000 | $0.01 |
+| Pinchtab interactive filter | ~180,000 | $0.05 |
+
+Use `/text` when you only need content. Use `?filter=interactive` when you need to act. Use the full snapshot when you need page structure.
+
 ## Compared To
 
 | | Pinchtab | Steel Browser | Playwright MCP | OpenClaw Browser |
