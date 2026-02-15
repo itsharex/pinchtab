@@ -190,6 +190,17 @@ Playwright MCP, OpenClaw, and Browser Use all default to accessibility trees for
 | Single binary | ✅ 12MB | ❌ | ❌ | ❌ |
 | Lines of code | ~600 | ~12,000 | ~5,000 | — |
 
+## Built With
+
+| Dependency | What it does | License |
+|---|---|---|
+| [chromedp](https://github.com/chromedp/chromedp) | Chrome DevTools Protocol driver for Go | MIT |
+| [cdproto](https://github.com/chromedp/cdproto) | Generated CDP types and commands | MIT |
+| [gobwas/ws](https://github.com/gobwas/ws) | Low-level WebSocket (used by chromedp) | MIT |
+| [go-json-experiment/json](https://github.com/go-json-experiment/json) | JSON v2 library (used by cdproto) | BSD-3-Clause |
+
+Everything else is Go standard library.
+
 ## License
 
-MIT
+MIT — [Giago Software Ltd](https://giago.co)
