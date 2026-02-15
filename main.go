@@ -666,44 +666,53 @@ func clickByRef(ctx context.Context, ref string) error {
 	if err != nil {
 		return err
 	}
+	return clickByNodeID(ctx, nodeID)
+}
+
+func clickByNodeID(ctx context.Context, backendNodeID int64) error {
+	// Use DOM.resolveNode to get a JS object reference, then click it
 	return chromedp.Run(ctx,
-		chromedp.Evaluate(fmt.Sprintf(`
-			(function() {
-				const node = document.querySelector('[data-bridge-ref="%s"]');
-				if (node) { node.click(); return true; }
-				// Fallback: find by walking
-				const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-				let n, i = 0;
-				while (n = walker.nextNode()) {
-					if (n.getAttribute && n.getAttribute('data-bridge-nid') === '%d') {
-						n.click(); return true;
-					}
-				}
-				return false;
-			})()
-		`, ref, nodeID), nil),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// Resolve backend node to a remote object
+			p := map[string]any{"backendNodeId": backendNodeID}
+			var result gojson.RawMessage
+			if err := chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.resolveNode", p, &result); err != nil {
+				return fmt.Errorf("DOM.resolveNode: %v", err)
+			}
+			// Parse the object ID
+			var resp struct {
+				Object struct {
+					ObjectID string `json:"objectId"`
+				} `json:"object"`
+			}
+			if err := gojson.Unmarshal(result, &resp); err != nil {
+				return err
+			}
+			if resp.Object.ObjectID == "" {
+				return fmt.Errorf("no objectId for node %d", backendNodeID)
+			}
+			// Call click() on the resolved object
+			callP := map[string]any{
+				"objectId":            resp.Object.ObjectID,
+				"functionDeclaration": "function() { this.click(); }",
+				"arguments":           []any{},
+			}
+			return chromedp.FromContext(ctx).Target.Execute(ctx, "Runtime.callFunctionOn", callP, nil)
+		}),
 	)
 }
 
 func typeByRef(ctx context.Context, ref string, text string) error {
-	_, err := resolveRefToNodeID(ctx, ref)
+	nodeID, err := resolveRefToNodeID(ctx, ref)
 	if err != nil {
 		return err
 	}
-	// Focus then type via keyboard
+	// Focus via DOM.focus then type via keyboard
 	return chromedp.Run(ctx,
-		chromedp.Evaluate(fmt.Sprintf(`
-			(function() {
-				const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-				let n;
-				while (n = walker.nextNode()) {
-					if (n.getAttribute && n.getAttribute('data-bridge-ref') === '%s') {
-						n.focus(); return true;
-					}
-				}
-				return false;
-			})()
-		`, ref), nil),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			p := map[string]any{"backendNodeId": nodeID}
+			return chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.focus", p, nil)
+		}),
 		chromedp.KeyEvent(text),
 	)
 }
