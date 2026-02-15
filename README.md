@@ -218,12 +218,22 @@ go build -o pinchtab .
 go test ./...
 ```
 
-## Security
+## ⚠️ Security — Read This
 
-- Set `BRIDGE_TOKEN` in production — without it, anyone on the network can control your browser
-- Chrome profile persists cookies/sessions — treat `~/.pinchtab/` as sensitive
-- Pinchtab binds to all interfaces by default — use a firewall or reverse proxy in exposed environments
-- No data leaves your machine — all processing is local
+**Pinchtab gives AI agents full control of a real browser with your real accounts.**
+
+When you log into sites through Pinchtab's Chrome window, those sessions — cookies, tokens, saved passwords — persist in `~/.pinchtab/chrome-profile/`. Any agent with HTTP access to Pinchtab can then act as you: read your email, post on your behalf, make purchases, access sensitive data.
+
+**This is by design.** That's what makes it useful. But it means:
+
+- **You are responsible for what agents do with your accounts.** Pinchtab is a tool, not a guardrail. If you give an agent access to your bank and it does something stupid, that's on you.
+- **Set `BRIDGE_TOKEN`** — without it, anyone on your network can control your browser. In production, this is non-negotiable.
+- **Treat `~/.pinchtab/` as sensitive** — it contains your Chrome profile with all saved sessions and cookies. Guard it like you'd guard your passwords.
+- **Pinchtab binds to all interfaces by default** — use a firewall or reverse proxy if you're on a shared network.
+- **Start with low-risk accounts.** Don't point an experimental agent at your primary email or bank account on day one. Test with throwaway accounts first.
+- **No data leaves your machine** — all processing is local. But the agents you connect might send data wherever they want.
+
+Think of Pinchtab like giving someone your unlocked laptop. Powerful if you trust them. Dangerous if you don't.
 
 ## Contributors
 
