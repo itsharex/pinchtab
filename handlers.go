@@ -134,7 +134,7 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	if format == "text" {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
-		fmt.Fprintf(w, "# %s\n# %s\n# %d nodes\n\n", title, url, len(flat))
+		_, _ = fmt.Fprintf(w, "# %s\n# %s\n# %d nodes\n\n", title, url, len(flat))
 		_, _ = w.Write([]byte(formatSnapshotText(flat)))
 		return
 	}
