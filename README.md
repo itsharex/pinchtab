@@ -233,6 +233,53 @@ Use `/text` when you only need content. Use `?filter=interactive` when you need 
 
 Everything else is Go standard library.
 
+## Requirements
+
+- **Go 1.21+** (build from source) or download a [prebuilt binary](https://github.com/pinchtab/pinchtab/releases)
+- **Google Chrome** or Chromium installed
+
+## Install
+
+```bash
+# From source
+go install github.com/pinchtab/pinchtab@latest
+
+# Or clone and build
+git clone https://github.com/pinchtab/pinchtab.git
+cd pinchtab
+go build -o pinchtab .
+```
+
+## Development
+
+```bash
+git clone https://github.com/pinchtab/pinchtab.git
+cd pinchtab
+go build -o pinchtab .
+./pinchtab
+
+# Run tests (coming soon)
+go test ./...
+```
+
+## Security
+
+- Set `BRIDGE_TOKEN` in production — without it, anyone on the network can control your browser
+- Chrome profile persists cookies/sessions — treat `~/.browser-bridge/` as sensitive
+- Pinchtab binds to all interfaces by default — use a firewall or reverse proxy in exposed environments
+- No data leaves your machine — all processing is local
+
+## Contributors
+
+### Humans
+
+<a href="https://github.com/luigi-agosti"><img src="https://github.com/luigi-agosti.png" width="60" style="border-radius:50%" alt="Luigi Agosti"/></a>
+
+### Agents
+
+<a href="https://github.com/bosh-code"><img src="https://github.com/bosh-code.png" width="60" style="border-radius:50%" alt="Bosch"/></a>
+<a href="https://github.com/mario-agent"><img src="https://github.com/mario-agent.png" width="60" style="border-radius:50%" alt="Mario"/></a>
+
 ## Works with OpenClaw
 
 Pinchtab is built to work seamlessly with [OpenClaw](https://openclaw.ai) — the open-source personal AI assistant. Use Pinchtab as your agent's browser backend for faster, cheaper web automation.
