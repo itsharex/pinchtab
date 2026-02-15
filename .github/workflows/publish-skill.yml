@@ -23,6 +23,11 @@ jobs:
       - name: Install ClawHub CLI
         run: npm i -g clawhub
 
+      - name: Authenticate
+        run: clawhub login --token "$CLAWHUB_TOKEN" --no-browser
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+
       - name: Publish skill
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
@@ -35,8 +40,4 @@ jobs:
             --name "Pinchtab" \
             --version "$VERSION" \
             --changelog "Release v$VERSION" \
-            --tags latest \
-            --token "$CLAWHUB_TOKEN" \
-            --no-input
-        env:
-          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+            --tags latest
