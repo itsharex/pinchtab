@@ -23,16 +23,16 @@
 - [x] Errors wrapped with `%w` consistently
 - [x] All ignored errors handled (`os.MkdirAll`, `json.Encode`, `os.WriteFile`, `json.MarshalIndent`)
 
-## P1: Code Structure (File Split)
-Split `main.go` (1045 lines) into single-package files:
-- [ ] `config.go` — env vars, constants, magic strings
-- [ ] `bridge.go` — Bridge struct, tabContext, cleanStaleTabs, tab registry
-- [ ] `handlers.go` — HTTP handlers
-- [ ] `snapshot.go` — a11y types, tree parsing, snapshot logic
-- [ ] `cdp.go` — clickByNodeID, typeByNodeID, listTargets, resolveNode
-- [ ] `state.go` — save/restore, markCleanExit
-- [ ] `middleware.go` — auth, CORS
-- [ ] `server.go` — main(), route setup, signal handling
+## Done ✅ (P1)
+Split into 8 files (single package):
+- [x] `config.go` (33 lines) — env vars, constants
+- [x] `bridge.go` (117 lines) — Bridge struct, tabContext, cleanStaleTabs
+- [x] `snapshot.go` (60 lines) — A11yNode, raw a11y types, interactiveRoles
+- [x] `cdp.go` (76 lines) — clickByNodeID, typeByNodeID, listTargets
+- [x] `state.go` (112 lines) — save/restore, markCleanExit
+- [x] `handlers.go` (545 lines) — all HTTP handlers
+- [x] `middleware.go` (53 lines) — auth, CORS, jsonResp, cancelOnClientDone
+- [x] `main.go` (152 lines) — Chrome launch, routes, signal handling
 
 ## P2: Go Idioms & Clean Code
 - [ ] Eliminate global `bridge` var — pass as receiver or inject into handlers
