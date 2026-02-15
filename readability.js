@@ -4,7 +4,10 @@
   const strip = ['nav', 'footer', 'aside', 'header', '[role="navigation"]',
     '[role="banner"]', '[role="contentinfo"]', '[aria-hidden="true"]',
     '.ad', '.ads', '.advertisement', '.sidebar', '.cookie-banner',
-    '#cookie-consent', '.popup', '.modal'];
+    '#cookie-consent', '.popup', '.modal',
+    '#SIvCob', '[data-locale-picker]', '[role="listbox"]',
+    '#Lb4nn', '.language-selector', '.locale-selector',
+    '[data-language-picker]', '#langsec-button'];
 
   // Try article or main first
   let root = document.querySelector('article') ||
