@@ -108,6 +108,20 @@ Minor — cosmetic warning but could affect stability per Chrome's own messaging
 
 ---
 
+## Retest Results (post-fix, 2026-02-15)
+
+| Bug | Status | Notes |
+|-----|--------|-------|
+| 🟡 `newTab:true` broken | ✅ FIXED | Creates new CDP tab, returns new tabId |
+| 🟡 `/action` unhelpful error | ✅ FIXED | Lists valid `kind` values |
+| 🟢 `/navigate` empty title | ✅ PARTIAL | BBC works ("BBC - Home"), x.com still empty (SPA >2s) |
+| 🟢 `/text` Google blob | ✅ FIXED | Tokens dropped ~764 → ~143 |
+| 🔴 Active tab tracking | ❌ STILL BROKEN | Navigate→read returns stale tab content |
+
+**Active tab tracking remains the critical P0.** After navigating to x.com, `/text` returned Google's content. Sequential navigate→read is unreliable without explicit `tabId` targeting.
+
+---
+
 ## Sites Tested
 
 **Mario:** Google, GitHub, BBC, Wikipedia, x.com, LinkedIn  
