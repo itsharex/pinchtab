@@ -45,6 +45,10 @@ BRIDGE_HEADLESS=true ./pinchtab
 
 Chrome opens. You log into your sites. Agents drive the rest.
 
+### First-Time Login
+
+Pinchtab launches its own Chrome with a persistent profile at `~/.browser-bridge/chrome-profile/`. The first time you run it, you'll need to log into any sites you want agents to access (X/Twitter, Google, etc.) — just do it in the Chrome window that opens. Cookies and sessions persist across restarts, so you only need to do this once.
+
 ## Features
 
 ### 🌲 Accessibility-First Snapshots
