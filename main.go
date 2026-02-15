@@ -18,7 +18,6 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
-	gojson "encoding/json"
 )
 
 // ── Config ─────────────────────────────────────────────────
@@ -30,6 +29,7 @@ var (
 	stateDir   = envOr("BRIDGE_STATE_DIR", filepath.Join(homeDir(), ".browser-bridge"))
 	headless   = os.Getenv("BRIDGE_HEADLESS") == "true"
 	profileDir = envOr("BRIDGE_PROFILE", filepath.Join(homeDir(), ".browser-bridge", "chrome-profile"))
+	actionTimeout = 15 * time.Second
 )
 
 // ── State ──────────────────────────────────────────────────
@@ -41,8 +41,8 @@ type TabState struct {
 }
 
 type SessionState struct {
-	Tabs      []TabState `json:"tabs"`
-	SavedAt   string     `json:"savedAt"`
+	Tabs    []TabState `json:"tabs"`
+	SavedAt string     `json:"savedAt"`
 }
 
 type TabEntry struct {
@@ -50,10 +50,18 @@ type TabEntry struct {
 	cancel context.CancelFunc
 }
 
+// refCache stores the ref→backendNodeID mapping from the last snapshot per tab.
+// This avoids re-fetching the a11y tree on every action — refs stay stable
+// until the next snapshot call.
+type refCache struct {
+	refs map[string]int64 // "e0" → backendNodeID
+}
+
 type Bridge struct {
 	allocCtx   context.Context
 	browserCtx context.Context // persistent browser context
 	tabs       map[string]*TabEntry
+	snapshots  map[string]*refCache // tabID → last snapshot's ref mapping
 	mu         sync.RWMutex
 }
 
@@ -80,16 +88,12 @@ func main() {
 	var allocCancel context.CancelFunc
 
 	if cdpURL != "" {
-		// Remote mode: connect to existing Chrome
 		log.Printf("Connecting to Chrome at %s", cdpURL)
 		bridge.allocCtx, allocCancel = chromedp.NewRemoteAllocator(context.Background(), cdpURL)
 	} else {
-		// Local mode: launch Chrome ourselves
 		os.MkdirAll(profileDir, 0755)
 		log.Printf("Launching Chrome (profile: %s, headless: %v)", profileDir, headless)
 
-		// Start from minimal opts — DefaultExecAllocatorOptions sets
-		// automation flags that trigger bot detection
 		opts := []chromedp.ExecAllocatorOption{
 			chromedp.UserDataDir(profileDir),
 			chromedp.NoFirstRun,
@@ -105,10 +109,7 @@ func main() {
 			chromedp.Flag("disable-default-apps", false),
 			chromedp.Flag("no-first-run", true),
 
-			// Use standard user agent (not the headless one)
 			chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"),
-
-			// Standard window size
 			chromedp.WindowSize(1440, 900),
 		}
 
@@ -122,32 +123,25 @@ func main() {
 	}
 	defer allocCancel()
 
-	// Create persistent browser context (launches Chrome in local mode)
 	browserCtx, browserCancel := chromedp.NewContext(bridge.allocCtx)
 	defer browserCancel()
 
 	// Initialize and inject stealth scripts
 	if err := chromedp.Run(browserCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Inject script to run on every new document (hides webdriver flag)
 			_, err := page.AddScriptToEvaluateOnNewDocument(`
-				// Hide webdriver
 				Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-				// Hide chrome.runtime (automation detection)
 				if (!window.chrome) { window.chrome = {}; }
 				if (!window.chrome.runtime) { window.chrome.runtime = {}; }
-				// Fix permissions
 				const originalQuery = window.navigator.permissions.query;
 				window.navigator.permissions.query = (parameters) => (
 					parameters.name === 'notifications' ?
 						Promise.resolve({ state: Notification.permission }) :
 						originalQuery(parameters)
 				);
-				// Hide plugins length
 				Object.defineProperty(navigator, 'plugins', {
 					get: () => [1, 2, 3, 4, 5],
 				});
-				// Hide languages
 				Object.defineProperty(navigator, 'languages', {
 					get: () => ['en-GB', 'en-US', 'en'],
 				});
@@ -159,11 +153,18 @@ func main() {
 	}
 	bridge.browserCtx = browserCtx
 	bridge.tabs = make(map[string]*TabEntry)
+	bridge.snapshots = make(map[string]*refCache)
 
 	// Register the initial tab
 	initTargetID := chromedp.FromContext(browserCtx).Target.TargetID
 	bridge.tabs[string(initTargetID)] = &TabEntry{ctx: browserCtx}
 	log.Printf("Initial tab: %s", initTargetID)
+
+	// Restore tabs from last session
+	restoreState()
+
+	// Start background tab cleanup
+	go bridge.cleanStaleTabs(30 * time.Second)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
@@ -176,10 +177,8 @@ func main() {
 	mux.HandleFunc("POST /evaluate", handleEvaluate)
 	mux.HandleFunc("POST /tab", handleTab)
 
-	// Wrap with auth + CORS
 	handler := corsMiddleware(authMiddleware(mux))
 
-	// Graceful shutdown — save state
 	srv := &http.Server{Addr: ":" + port, Handler: handler}
 	go func() {
 		sig := make(chan os.Signal, 1)
@@ -250,7 +249,7 @@ type rawAXNode struct {
 
 type rawAXValue struct {
 	Type  string          `json:"type"`
-	Value gojson.RawMessage `json:"value"`
+	Value json.RawMessage `json:"value"`
 }
 
 type rawAXProp struct {
@@ -263,10 +262,9 @@ func (v *rawAXValue) String() string {
 		return ""
 	}
 	var s string
-	if err := gojson.Unmarshal(v.Value, &s); err == nil {
+	if err := json.Unmarshal(v.Value, &s); err == nil {
 		return s
 	}
-	// Try number/bool
 	return strings.Trim(string(v.Value), `"`)
 }
 
@@ -283,16 +281,18 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ctx, cancel, err := tabContext(tabID)
+	ctx, resolvedTabID, err := tabContext(tabID)
 	if err != nil {
 		jsonErr(w, 404, err)
 		return
 	}
-	defer cancel()
+
+	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	defer tCancel()
 
 	// Use raw CDP call to avoid cdproto deserialization issues
-	var rawResult gojson.RawMessage
-	if err := chromedp.Run(ctx,
+	var rawResult json.RawMessage
+	if err := chromedp.Run(tCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			return chromedp.FromContext(ctx).Target.Execute(ctx,
 				"Accessibility.getFullAXTree", nil, &rawResult)
@@ -302,11 +302,10 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse raw response
 	var treeResp struct {
 		Nodes []rawAXNode `json:"nodes"`
 	}
-	if err := gojson.Unmarshal(rawResult, &treeResp); err != nil {
+	if err := json.Unmarshal(rawResult, &treeResp); err != nil {
 		jsonErr(w, 500, fmt.Errorf("parse a11y tree: %v", err))
 		return
 	}
@@ -331,7 +330,9 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		cur := nodeID
 		for {
 			p, ok := parentMap[cur]
-			if !ok { break }
+			if !ok {
+				break
+			}
 			d++
 			cur = p
 		}
@@ -339,23 +340,35 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	flat := make([]A11yNode, 0)
+	refs := make(map[string]int64) // ref→backendNodeID cache
 	refID := 0
 
 	for _, n := range treeResp.Nodes {
-		if n.Ignored { continue }
+		if n.Ignored {
+			continue
+		}
 
 		role := n.Role.String()
 		name := n.Name.String()
 
-		if role == "none" || role == "generic" || role == "InlineTextBox" { continue }
-		if name == "" && role == "StaticText" { continue }
+		if role == "none" || role == "generic" || role == "InlineTextBox" {
+			continue
+		}
+		if name == "" && role == "StaticText" {
+			continue
+		}
 
 		depth := depthOf(n.NodeID)
-		if maxDepth >= 0 && depth > maxDepth { continue }
-		if filter == "interactive" && !interactiveRoles[role] { continue }
+		if maxDepth >= 0 && depth > maxDepth {
+			continue
+		}
+		if filter == "interactive" && !interactiveRoles[role] {
+			continue
+		}
 
+		ref := fmt.Sprintf("e%d", refID)
 		entry := A11yNode{
-			Ref:   fmt.Sprintf("e%d", refID),
+			Ref:   ref,
 			Role:  role,
 			Name:  name,
 			Depth: depth,
@@ -366,6 +379,7 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		}
 		if n.BackendDOMNodeID != 0 {
 			entry.NodeID = n.BackendDOMNodeID
+			refs[ref] = n.BackendDOMNodeID
 		}
 
 		for _, prop := range n.Properties {
@@ -381,8 +395,13 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		refID++
 	}
 
+	// Cache the ref→nodeID mapping for this tab (#1 ref stability fix)
+	bridge.mu.Lock()
+	bridge.snapshots[resolvedTabID] = &refCache{refs: refs}
+	bridge.mu.Unlock()
+
 	var url, title string
-	chromedp.Run(ctx,
+	chromedp.Run(tCtx,
 		chromedp.Location(&url),
 		chromedp.Title(&title),
 	)
@@ -400,12 +419,14 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 func handleScreenshot(w http.ResponseWriter, r *http.Request) {
 	tabID := r.URL.Query().Get("tabId")
 
-	ctx, cancel, err := tabContext(tabID)
+	ctx, _, err := tabContext(tabID)
 	if err != nil {
 		jsonErr(w, 404, err)
 		return
 	}
-	defer cancel()
+
+	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	defer tCancel()
 
 	var buf []byte
 	quality := 80
@@ -415,7 +436,7 @@ func handleScreenshot(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Run(tCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var err error
 			buf, err = page.CaptureScreenshot().
@@ -429,7 +450,6 @@ func handleScreenshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return raw image if requested
 	if r.URL.Query().Get("raw") == "true" {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Write(buf)
@@ -438,7 +458,7 @@ func handleScreenshot(w http.ResponseWriter, r *http.Request) {
 
 	jsonResp(w, 200, map[string]any{
 		"format": "jpeg",
-		"base64": buf, // encoding/json will base64-encode []byte
+		"base64": buf,
 	})
 }
 
@@ -447,15 +467,17 @@ func handleScreenshot(w http.ResponseWriter, r *http.Request) {
 func handleText(w http.ResponseWriter, r *http.Request) {
 	tabID := r.URL.Query().Get("tabId")
 
-	ctx, cancel, err := tabContext(tabID)
+	ctx, _, err := tabContext(tabID)
 	if err != nil {
 		jsonErr(w, 404, err)
 		return
 	}
-	defer cancel()
+
+	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	defer tCancel()
 
 	var text string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Run(tCtx,
 		chromedp.Evaluate(`document.body.innerText`, &text),
 	); err != nil {
 		jsonErr(w, 500, err)
@@ -463,7 +485,7 @@ func handleText(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var url, title string
-	chromedp.Run(ctx,
+	chromedp.Run(tCtx,
 		chromedp.Location(&url),
 		chromedp.Title(&title),
 	)
@@ -491,20 +513,27 @@ func handleNavigate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel, err := tabContext(req.TabID)
+	ctx, resolvedTabID, err := tabContext(req.TabID)
 	if err != nil {
 		jsonErr(w, 404, err)
 		return
 	}
-	defer cancel()
 
-	if err := chromedp.Run(ctx, chromedp.Navigate(req.URL)); err != nil {
+	tCtx, tCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer tCancel()
+
+	if err := chromedp.Run(tCtx, chromedp.Navigate(req.URL)); err != nil {
 		jsonErr(w, 500, err)
 		return
 	}
 
+	// Invalidate snapshot cache — page changed
+	bridge.mu.Lock()
+	delete(bridge.snapshots, resolvedTabID)
+	bridge.mu.Unlock()
+
 	var url, title string
-	chromedp.Run(ctx,
+	chromedp.Run(tCtx,
 		chromedp.Location(&url),
 		chromedp.Title(&title),
 	)
@@ -529,21 +558,36 @@ func handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel, err := tabContext(req.TabID)
+	ctx, resolvedTabID, err := tabContext(req.TabID)
 	if err != nil {
 		jsonErr(w, 404, err)
 		return
 	}
-	defer cancel()
 
-	// Resolve target: prefer nodeId > selector > ref-based lookup
+	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	defer tCancel()
+
+	// Resolve ref to backendNodeID from cached snapshot
+	if req.Ref != "" && req.NodeID == 0 && req.Selector == "" {
+		bridge.mu.RLock()
+		cache := bridge.snapshots[resolvedTabID]
+		bridge.mu.RUnlock()
+		if cache != nil {
+			if nid, ok := cache.refs[req.Ref]; ok {
+				req.NodeID = nid
+			}
+		}
+		if req.NodeID == 0 {
+			jsonResp(w, 400, map[string]string{
+				"error": fmt.Sprintf("ref %s not found — take a /snapshot first", req.Ref),
+			})
+			return
+		}
+	}
+
 	var sel string
 	if req.Selector != "" {
 		sel = req.Selector
-	} else if req.NodeID > 0 {
-		// Use JS to find element by backend node ID — chromedp resolves via DOM.resolveNode
-		sel = fmt.Sprintf(`[data-bridge-node="%d"]`, req.NodeID)
-		// For nodeId-based actions, we use chromedp's built-in node resolution
 	}
 
 	var result map[string]any
@@ -551,9 +595,9 @@ func handleAction(w http.ResponseWriter, r *http.Request) {
 	switch req.Kind {
 	case "click":
 		if sel != "" {
-			err = chromedp.Run(ctx, chromedp.Click(sel, chromedp.ByQuery))
-		} else if req.Ref != "" {
-			err = clickByRef(ctx, req.Ref)
+			err = chromedp.Run(tCtx, chromedp.Click(sel, chromedp.ByQuery))
+		} else if req.NodeID > 0 {
+			err = clickByNodeID(tCtx, req.NodeID)
 		} else {
 			jsonResp(w, 400, map[string]string{"error": "need selector, ref, or nodeId"})
 			return
@@ -566,18 +610,21 @@ func handleAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if sel != "" {
-			err = chromedp.Run(ctx,
+			err = chromedp.Run(tCtx,
 				chromedp.Click(sel, chromedp.ByQuery),
 				chromedp.SendKeys(sel, req.Text, chromedp.ByQuery),
 			)
-		} else if req.Ref != "" {
-			err = typeByRef(ctx, req.Ref, req.Text)
+		} else if req.NodeID > 0 {
+			err = typeByNodeID(tCtx, req.NodeID, req.Text)
+		} else {
+			jsonResp(w, 400, map[string]string{"error": "need selector or ref"})
+			return
 		}
 		result = map[string]any{"typed": req.Text}
 
 	case "fill":
 		if sel != "" {
-			err = chromedp.Run(ctx,
+			err = chromedp.Run(tCtx,
 				chromedp.SetValue(sel, req.Text, chromedp.ByQuery),
 			)
 		}
@@ -588,12 +635,19 @@ func handleAction(w http.ResponseWriter, r *http.Request) {
 			jsonResp(w, 400, map[string]string{"error": "key required for press"})
 			return
 		}
-		err = chromedp.Run(ctx, chromedp.KeyEvent(req.Key))
+		err = chromedp.Run(tCtx, chromedp.KeyEvent(req.Key))
 		result = map[string]any{"pressed": req.Key}
 
 	case "focus":
 		if sel != "" {
-			err = chromedp.Run(ctx, chromedp.Focus(sel, chromedp.ByQuery))
+			err = chromedp.Run(tCtx, chromedp.Focus(sel, chromedp.ByQuery))
+		} else if req.NodeID > 0 {
+			err = chromedp.Run(tCtx,
+				chromedp.ActionFunc(func(ctx context.Context) error {
+					p := map[string]any{"backendNodeId": req.NodeID}
+					return chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.focus", p, nil)
+				}),
+			)
 		}
 		result = map[string]any{"focused": true}
 
@@ -626,15 +680,17 @@ func handleEvaluate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel, err := tabContext(req.TabID)
+	ctx, _, err := tabContext(req.TabID)
 	if err != nil {
 		jsonErr(w, 404, err)
 		return
 	}
-	defer cancel()
+
+	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	defer tCancel()
 
 	var result any
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Run(tCtx,
 		chromedp.Evaluate(req.Expression, &result),
 	); err != nil {
 		jsonErr(w, 500, err)
@@ -671,7 +727,6 @@ func handleTab(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Register in tab registry
 		newTargetID := string(chromedp.FromContext(ctx).Target.TargetID)
 		bridge.mu.Lock()
 		bridge.tabs[newTargetID] = &TabEntry{ctx: ctx, cancel: cancel}
@@ -686,6 +741,18 @@ func handleTab(w http.ResponseWriter, r *http.Request) {
 			jsonResp(w, 400, map[string]string{"error": "tabId required"})
 			return
 		}
+
+		// Clean up from registry
+		bridge.mu.Lock()
+		if entry, ok := bridge.tabs[req.TabID]; ok {
+			if entry.cancel != nil {
+				entry.cancel()
+			}
+			delete(bridge.tabs, req.TabID)
+			delete(bridge.snapshots, req.TabID)
+		}
+		bridge.mu.Unlock()
+
 		ctx, cancel := chromedp.NewContext(bridge.browserCtx,
 			chromedp.WithTargetID(target.ID(req.TabID)),
 		)
@@ -701,39 +768,27 @@ func handleTab(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ── Ref-based actions ──────────────────────────────────────
-
-func clickByRef(ctx context.Context, ref string) error {
-	nodeID, err := resolveRefToNodeID(ctx, ref)
-	if err != nil {
-		return err
-	}
-	return clickByNodeID(ctx, nodeID)
-}
+// ── Node-based actions (use backendNodeID directly) ────────
 
 func clickByNodeID(ctx context.Context, backendNodeID int64) error {
-	// Use DOM.resolveNode to get a JS object reference, then click it
 	return chromedp.Run(ctx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Resolve backend node to a remote object
 			p := map[string]any{"backendNodeId": backendNodeID}
-			var result gojson.RawMessage
+			var result json.RawMessage
 			if err := chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.resolveNode", p, &result); err != nil {
 				return fmt.Errorf("DOM.resolveNode: %v", err)
 			}
-			// Parse the object ID
 			var resp struct {
 				Object struct {
 					ObjectID string `json:"objectId"`
 				} `json:"object"`
 			}
-			if err := gojson.Unmarshal(result, &resp); err != nil {
+			if err := json.Unmarshal(result, &resp); err != nil {
 				return err
 			}
 			if resp.Object.ObjectID == "" {
 				return fmt.Errorf("no objectId for node %d", backendNodeID)
 			}
-			// Call click() on the resolved object
 			callP := map[string]any{
 				"objectId":            resp.Object.ObjectID,
 				"functionDeclaration": "function() { this.click(); }",
@@ -744,84 +799,38 @@ func clickByNodeID(ctx context.Context, backendNodeID int64) error {
 	)
 }
 
-func typeByRef(ctx context.Context, ref string, text string) error {
-	nodeID, err := resolveRefToNodeID(ctx, ref)
-	if err != nil {
-		return err
-	}
-	// Focus via DOM.focus then type via keyboard
+func typeByNodeID(ctx context.Context, backendNodeID int64, text string) error {
 	return chromedp.Run(ctx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			p := map[string]any{"backendNodeId": nodeID}
+			p := map[string]any{"backendNodeId": backendNodeID}
 			return chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.focus", p, nil)
 		}),
 		chromedp.KeyEvent(text),
 	)
 }
 
-func resolveRefToNodeID(ctx context.Context, ref string) (int64, error) {
-	refNum := 0
-	fmt.Sscanf(strings.TrimPrefix(ref, "e"), "%d", &refNum)
-
-	var rawResult gojson.RawMessage
-	if err := chromedp.Run(ctx,
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			return chromedp.FromContext(ctx).Target.Execute(ctx,
-				"Accessibility.getFullAXTree", nil, &rawResult)
-		}),
-	); err != nil {
-		return 0, err
-	}
-
-	var treeResp struct {
-		Nodes []rawAXNode `json:"nodes"`
-	}
-	if err := gojson.Unmarshal(rawResult, &treeResp); err != nil {
-		return 0, err
-	}
-
-	idx := 0
-	for _, n := range treeResp.Nodes {
-		if n.Ignored { continue }
-		role := n.Role.String()
-		if role == "none" || role == "generic" || role == "InlineTextBox" { continue }
-		name := n.Name.String()
-		if name == "" && role == "StaticText" { continue }
-
-		if idx == refNum {
-			if n.BackendDOMNodeID != 0 {
-				return n.BackendDOMNodeID, nil
-			}
-			return 0, fmt.Errorf("node at ref %s has no backend DOM node", ref)
-		}
-		idx++
-	}
-
-	return 0, fmt.Errorf("ref %s not found (max: e%d)", ref, idx-1)
-}
-
 // ── Tab context helper ─────────────────────────────────────
 
-func tabContext(tabID string) (context.Context, context.CancelFunc, error) {
-	bridge.mu.RLock()
-	defer bridge.mu.RUnlock()
+// tabContext returns the chromedp context for a tab and the resolved tabID.
+// If tabID is empty, uses the first page target.
+func tabContext(tabID string) (context.Context, string, error) {
+	bridge.mu.Lock()
+	defer bridge.mu.Unlock()
 
 	if tabID == "" {
-		// Use first page target
 		targets, err := listTargets()
 		if err != nil {
-			return nil, nil, err
+			return nil, "", err
 		}
 		if len(targets) == 0 {
-			return nil, nil, fmt.Errorf("no tabs open")
+			return nil, "", fmt.Errorf("no tabs open")
 		}
 		tabID = string(targets[0].TargetID)
 	}
 
 	// Check registry first
 	if entry, ok := bridge.tabs[tabID]; ok {
-		noop := func() {}
-		return entry.ctx, noop, nil
+		return entry.ctx, tabID, nil
 	}
 
 	// Create new context for this target
@@ -830,18 +839,41 @@ func tabContext(tabID string) (context.Context, context.CancelFunc, error) {
 	)
 	if err := chromedp.Run(ctx); err != nil {
 		cancel()
-		return nil, nil, fmt.Errorf("tab %s not found: %v", tabID, err)
+		return nil, "", fmt.Errorf("tab %s not found: %v", tabID, err)
 	}
 
-	// Don't cancel — store in registry (caller gets noop cancel)
-	bridge.mu.RUnlock()
-	bridge.mu.Lock()
 	bridge.tabs[tabID] = &TabEntry{ctx: ctx, cancel: cancel}
-	bridge.mu.Unlock()
-	bridge.mu.RLock()
+	return ctx, tabID, nil
+}
 
-	noop := func() {}
-	return ctx, noop, nil
+// cleanStaleTabs periodically removes tab entries whose targets no longer exist.
+func (b *Bridge) cleanStaleTabs(interval time.Duration) {
+	for {
+		time.Sleep(interval)
+
+		targets, err := listTargets()
+		if err != nil {
+			continue
+		}
+
+		alive := make(map[string]bool, len(targets))
+		for _, t := range targets {
+			alive[string(t.TargetID)] = true
+		}
+
+		b.mu.Lock()
+		for id, entry := range b.tabs {
+			if !alive[id] {
+				if entry.cancel != nil {
+					entry.cancel()
+				}
+				delete(b.tabs, id)
+				delete(b.snapshots, id)
+				log.Printf("Cleaned stale tab: %s", id)
+			}
+		}
+		b.mu.Unlock()
+	}
 }
 
 func listTargets() ([]*target.Info, error) {
@@ -856,7 +888,6 @@ func listTargets() ([]*target.Info, error) {
 		return nil, err
 	}
 
-	// Filter to page targets only
 	pages := make([]*target.Info, 0)
 	for _, t := range targets {
 		if t.Type == "page" {
@@ -900,17 +931,32 @@ func saveState() {
 	}
 }
 
-func loadState() *SessionState {
+func restoreState() {
 	path := filepath.Join(stateDir, "sessions.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil
+		return
 	}
 	var state SessionState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil
+		return
 	}
-	return &state
+
+	restored := 0
+	for _, tab := range state.Tabs {
+		ctx, cancel := chromedp.NewContext(bridge.browserCtx)
+		if err := chromedp.Run(ctx, chromedp.Navigate(tab.URL)); err != nil {
+			cancel()
+			log.Printf("Failed to restore tab %s: %v", tab.URL, err)
+			continue
+		}
+		newID := string(chromedp.FromContext(ctx).Target.TargetID)
+		bridge.tabs[newID] = &TabEntry{ctx: ctx, cancel: cancel}
+		restored++
+	}
+	if restored > 0 {
+		log.Printf("Restored %d tabs from previous session", restored)
+	}
 }
 
 // ── Middleware ──────────────────────────────────────────────

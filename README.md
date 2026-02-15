@@ -99,7 +99,7 @@ Pinchtab patches `navigator.webdriver`, spoofs user agent, hides automation flag
 Chrome profile saved at `~/.browser-bridge/chrome-profile/`. Cookies, localStorage, auth tokens — all persist across restarts. Tabs are saved to `~/.browser-bridge/sessions.json` on shutdown.
 
 ### 📝 Text Extraction
-Get readable page text without the tree overhead:
+Get raw page text (body innerText) without the tree overhead:
 ```bash
 curl localhost:18800/text?tabId=X
 ```
