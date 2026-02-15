@@ -14,14 +14,14 @@
 - [x] Tab cleanup — background goroutine removes stale entries every 30s
 - [x] Tab restore on startup — loadState() called, tabs reopened
 
-## P0: Safety & Correctness
-- [ ] Add `http.MaxBytesReader` (1MB) on all POST handlers
-- [ ] Propagate `r.Context()` into CDP operations (cancel on client disconnect)
-- [ ] Graceful shutdown with `context.WithTimeout` (10s) instead of `context.Background()`
-- [ ] Fix goroutine leak — `cleanStaleTabs` should accept `context.Context` for cancellation
-- [ ] Fix `tabContext` lock — `RLock` first, upgrade to `Lock` only when creating new entry
-- [ ] Wrap errors with `%w` consistently (Go 1.13+ error wrapping)
-- [ ] Handle ignored errors (`os.MkdirAll`, `json.NewEncoder.Encode`)
+## Done ✅ (P0)
+- [x] `http.MaxBytesReader` (1MB) on all POST handlers
+- [x] `r.Context()` propagated — `cancelOnClientDone` cancels CDP on client disconnect
+- [x] Graceful shutdown with `context.WithTimeout` (10s)
+- [x] `cleanStaleTabs` accepts `context.Context` — no goroutine leak
+- [x] `tabContext` lock — RLock fast path, Lock only on miss, double-check pattern
+- [x] Errors wrapped with `%w` consistently
+- [x] All ignored errors handled (`os.MkdirAll`, `json.Encode`, `os.WriteFile`, `json.MarshalIndent`)
 
 ## P1: Code Structure (File Split)
 Split `main.go` (1045 lines) into single-package files:

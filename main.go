@@ -22,30 +22,36 @@ import (
 
 // ── Config ─────────────────────────────────────────────────
 
+const maxBodySize = 1 << 20 // 1MB
+
 var (
-	port       = envOr("BRIDGE_PORT", "18800")
-	cdpURL     = os.Getenv("CDP_URL") // empty = launch Chrome ourselves
-	token      = os.Getenv("BRIDGE_TOKEN")
-	stateDir   = envOr("BRIDGE_STATE_DIR", filepath.Join(homeDir(), ".browser-bridge"))
-	headless   = os.Getenv("BRIDGE_HEADLESS") == "true"
-	noRestore  = os.Getenv("BRIDGE_NO_RESTORE") == "true"
-	profileDir = envOr("BRIDGE_PROFILE", filepath.Join(homeDir(), ".browser-bridge", "chrome-profile"))
+	port          = envOr("BRIDGE_PORT", "18800")
+	cdpURL        = os.Getenv("CDP_URL") // empty = launch Chrome ourselves
+	token         = os.Getenv("BRIDGE_TOKEN")
+	stateDir      = envOr("BRIDGE_STATE_DIR", filepath.Join(homeDir(), ".browser-bridge"))
+	headless      = os.Getenv("BRIDGE_HEADLESS") == "true"
+	noRestore     = os.Getenv("BRIDGE_NO_RESTORE") == "true"
+	profileDir    = envOr("BRIDGE_PROFILE", filepath.Join(homeDir(), ".browser-bridge", "chrome-profile"))
 	actionTimeout = 15 * time.Second
+	shutdownTimeout = 10 * time.Second
 )
 
 // ── State ──────────────────────────────────────────────────
 
+// TabState represents a saved tab for session persistence.
 type TabState struct {
 	ID    string `json:"id"`
 	URL   string `json:"url"`
 	Title string `json:"title"`
 }
 
+// SessionState is the on-disk format for saved sessions.
 type SessionState struct {
 	Tabs    []TabState `json:"tabs"`
 	SavedAt string     `json:"savedAt"`
 }
 
+// TabEntry holds a chromedp context for an open tab.
 type TabEntry struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -58,6 +64,7 @@ type refCache struct {
 	refs map[string]int64 // "e0" → backendNodeID
 }
 
+// Bridge is the central state holder for tab contexts and snapshot caches.
 type Bridge struct {
 	allocCtx   context.Context
 	browserCtx context.Context // persistent browser context
@@ -70,6 +77,7 @@ var bridge Bridge
 
 // ── A11y Node (flat) ───────────────────────────────────────
 
+// A11yNode is a flattened accessibility tree node returned by /snapshot.
 type A11yNode struct {
 	Ref      string `json:"ref"`
 	Role     string `json:"role"`
@@ -84,7 +92,9 @@ type A11yNode struct {
 // ── Main ───────────────────────────────────────────────────
 
 func main() {
-	os.MkdirAll(stateDir, 0755)
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
+		log.Fatalf("Cannot create state dir: %v", err)
+	}
 
 	var allocCancel context.CancelFunc
 
@@ -92,7 +102,9 @@ func main() {
 		log.Printf("Connecting to Chrome at %s", cdpURL)
 		bridge.allocCtx, allocCancel = chromedp.NewRemoteAllocator(context.Background(), cdpURL)
 	} else {
-		os.MkdirAll(profileDir, 0755)
+		if err := os.MkdirAll(profileDir, 0755); err != nil {
+			log.Fatalf("Cannot create profile dir: %v", err)
+		}
 		log.Printf("Launching Chrome (profile: %s, headless: %v)", profileDir, headless)
 
 		opts := []chromedp.ExecAllocatorOption{
@@ -172,8 +184,10 @@ func main() {
 		restoreState()
 	}
 
-	// Start background tab cleanup
-	go bridge.cleanStaleTabs(30 * time.Second)
+	// Start background tab cleanup (cancellable via context)
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+	go bridge.cleanStaleTabs(cleanupCtx, 30*time.Second)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
@@ -194,9 +208,14 @@ func main() {
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
 		log.Println("Shutting down, saving state...")
+		cleanupCancel()
 		saveState()
 		markCleanExit()
-		srv.Shutdown(context.Background())
+		shutdownCtx, shutdownDone := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer shutdownDone()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Shutdown error: %v", err)
+		}
 	}()
 
 	log.Printf("🦀 PINCH! PINCH! — Pinchtab running on http://localhost:%s", port)
@@ -297,10 +316,11 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use request context so client disconnect cancels the CDP call
 	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
 	defer tCancel()
+	go cancelOnClientDone(r.Context(), tCancel)
 
-	// Use raw CDP call to avoid cdproto deserialization issues
 	var rawResult json.RawMessage
 	if err := chromedp.Run(tCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -308,7 +328,7 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 				"Accessibility.getFullAXTree", nil, &rawResult)
 		}),
 	); err != nil {
-		jsonErr(w, 500, err)
+		jsonErr(w, 500, fmt.Errorf("a11y tree: %w", err))
 		return
 	}
 
@@ -316,7 +336,7 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		Nodes []rawAXNode `json:"nodes"`
 	}
 	if err := json.Unmarshal(rawResult, &treeResp); err != nil {
-		jsonErr(w, 500, fmt.Errorf("parse a11y tree: %v", err))
+		jsonErr(w, 500, fmt.Errorf("parse a11y tree: %w", err))
 		return
 	}
 
@@ -350,7 +370,7 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	flat := make([]A11yNode, 0)
-	refs := make(map[string]int64) // ref→backendNodeID cache
+	refs := make(map[string]int64)
 	refID := 0
 
 	for _, n := range treeResp.Nodes {
@@ -405,7 +425,7 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		refID++
 	}
 
-	// Cache the ref→nodeID mapping for this tab (#1 ref stability fix)
+	// Cache the ref→nodeID mapping for this tab
 	bridge.mu.Lock()
 	bridge.snapshots[resolvedTabID] = &refCache{refs: refs}
 	bridge.mu.Unlock()
@@ -437,6 +457,7 @@ func handleScreenshot(w http.ResponseWriter, r *http.Request) {
 
 	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
 	defer tCancel()
+	go cancelOnClientDone(r.Context(), tCancel)
 
 	var buf []byte
 	quality := 80
@@ -456,13 +477,15 @@ func handleScreenshot(w http.ResponseWriter, r *http.Request) {
 			return err
 		}),
 	); err != nil {
-		jsonErr(w, 500, err)
+		jsonErr(w, 500, fmt.Errorf("screenshot: %w", err))
 		return
 	}
 
 	if r.URL.Query().Get("raw") == "true" {
 		w.Header().Set("Content-Type", "image/jpeg")
-		w.Write(buf)
+		if _, err := w.Write(buf); err != nil {
+			log.Printf("screenshot write: %v", err)
+		}
 		return
 	}
 
@@ -485,12 +508,13 @@ func handleText(w http.ResponseWriter, r *http.Request) {
 
 	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
 	defer tCancel()
+	go cancelOnClientDone(r.Context(), tCancel)
 
 	var text string
 	if err := chromedp.Run(tCtx,
 		chromedp.Evaluate(`document.body.innerText`, &text),
 	); err != nil {
-		jsonErr(w, 500, err)
+		jsonErr(w, 500, fmt.Errorf("text extract: %w", err))
 		return
 	}
 
@@ -514,8 +538,8 @@ func handleNavigate(w http.ResponseWriter, r *http.Request) {
 		TabID string `json:"tabId"`
 		URL   string `json:"url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonErr(w, 400, err)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodySize)).Decode(&req); err != nil {
+		jsonErr(w, 400, fmt.Errorf("decode: %w", err))
 		return
 	}
 	if req.URL == "" {
@@ -531,9 +555,10 @@ func handleNavigate(w http.ResponseWriter, r *http.Request) {
 
 	tCtx, tCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer tCancel()
+	go cancelOnClientDone(r.Context(), tCancel)
 
 	if err := chromedp.Run(tCtx, chromedp.Navigate(req.URL)); err != nil {
-		jsonErr(w, 500, err)
+		jsonErr(w, 500, fmt.Errorf("navigate: %w", err))
 		return
 	}
 
@@ -563,8 +588,8 @@ func handleAction(w http.ResponseWriter, r *http.Request) {
 		Key      string `json:"key"`
 		NodeID   int64  `json:"nodeId"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonErr(w, 400, err)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodySize)).Decode(&req); err != nil {
+		jsonErr(w, 400, fmt.Errorf("decode: %w", err))
 		return
 	}
 
@@ -576,6 +601,7 @@ func handleAction(w http.ResponseWriter, r *http.Request) {
 
 	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
 	defer tCancel()
+	go cancelOnClientDone(r.Context(), tCancel)
 
 	// Resolve ref to backendNodeID from cached snapshot
 	if req.Ref != "" && req.NodeID == 0 && req.Selector == "" {
@@ -667,7 +693,7 @@ func handleAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		jsonErr(w, 500, err)
+		jsonErr(w, 500, fmt.Errorf("action %s: %w", req.Kind, err))
 		return
 	}
 
@@ -681,8 +707,8 @@ func handleEvaluate(w http.ResponseWriter, r *http.Request) {
 		TabID      string `json:"tabId"`
 		Expression string `json:"expression"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonErr(w, 400, err)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodySize)).Decode(&req); err != nil {
+		jsonErr(w, 400, fmt.Errorf("decode: %w", err))
 		return
 	}
 	if req.Expression == "" {
@@ -698,12 +724,13 @@ func handleEvaluate(w http.ResponseWriter, r *http.Request) {
 
 	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
 	defer tCancel()
+	go cancelOnClientDone(r.Context(), tCancel)
 
 	var result any
 	if err := chromedp.Run(tCtx,
 		chromedp.Evaluate(req.Expression, &result),
 	); err != nil {
-		jsonErr(w, 500, err)
+		jsonErr(w, 500, fmt.Errorf("evaluate: %w", err))
 		return
 	}
 
@@ -718,8 +745,8 @@ func handleTab(w http.ResponseWriter, r *http.Request) {
 		TabID  string `json:"tabId"`
 		URL    string `json:"url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonErr(w, 400, err)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodySize)).Decode(&req); err != nil {
+		jsonErr(w, 400, fmt.Errorf("decode: %w", err))
 		return
 	}
 
@@ -733,7 +760,7 @@ func handleTab(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := chromedp.Run(ctx, chromedp.Navigate(url)); err != nil {
 			cancel()
-			jsonErr(w, 500, err)
+			jsonErr(w, 500, fmt.Errorf("new tab: %w", err))
 			return
 		}
 
@@ -768,7 +795,7 @@ func handleTab(w http.ResponseWriter, r *http.Request) {
 		)
 		defer cancel()
 		if err := chromedp.Run(ctx, page.Close()); err != nil {
-			jsonErr(w, 500, err)
+			jsonErr(w, 500, fmt.Errorf("close tab: %w", err))
 			return
 		}
 		jsonResp(w, 200, map[string]any{"closed": true})
@@ -786,7 +813,7 @@ func clickByNodeID(ctx context.Context, backendNodeID int64) error {
 			p := map[string]any{"backendNodeId": backendNodeID}
 			var result json.RawMessage
 			if err := chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.resolveNode", p, &result); err != nil {
-				return fmt.Errorf("DOM.resolveNode: %v", err)
+				return fmt.Errorf("DOM.resolveNode: %w", err)
 			}
 			var resp struct {
 				Object struct {
@@ -794,7 +821,7 @@ func clickByNodeID(ctx context.Context, backendNodeID int64) error {
 				} `json:"object"`
 			}
 			if err := json.Unmarshal(result, &resp); err != nil {
-				return err
+				return fmt.Errorf("unmarshal resolveNode: %w", err)
 			}
 			if resp.Object.ObjectID == "" {
 				return fmt.Errorf("no objectId for node %d", backendNodeID)
@@ -804,7 +831,10 @@ func clickByNodeID(ctx context.Context, backendNodeID int64) error {
 				"functionDeclaration": "function() { this.click(); }",
 				"arguments":           []any{},
 			}
-			return chromedp.FromContext(ctx).Target.Execute(ctx, "Runtime.callFunctionOn", callP, nil)
+			if err := chromedp.FromContext(ctx).Target.Execute(ctx, "Runtime.callFunctionOn", callP, nil); err != nil {
+				return fmt.Errorf("click callFunctionOn: %w", err)
+			}
+			return nil
 		}),
 	)
 }
@@ -813,7 +843,10 @@ func typeByNodeID(ctx context.Context, backendNodeID int64, text string) error {
 	return chromedp.Run(ctx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			p := map[string]any{"backendNodeId": backendNodeID}
-			return chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.focus", p, nil)
+			if err := chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.focus", p, nil); err != nil {
+				return fmt.Errorf("DOM.focus: %w", err)
+			}
+			return nil
 		}),
 		chromedp.KeyEvent(text),
 	)
@@ -823,14 +856,12 @@ func typeByNodeID(ctx context.Context, backendNodeID int64, text string) error {
 
 // tabContext returns the chromedp context for a tab and the resolved tabID.
 // If tabID is empty, uses the first page target.
+// Uses RLock for reads, upgrades to Lock only when creating a new entry.
 func tabContext(tabID string) (context.Context, string, error) {
-	bridge.mu.Lock()
-	defer bridge.mu.Unlock()
-
 	if tabID == "" {
 		targets, err := listTargets()
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("list targets: %w", err)
 		}
 		if len(targets) == 0 {
 			return nil, "", fmt.Errorf("no tabs open")
@@ -838,18 +869,29 @@ func tabContext(tabID string) (context.Context, string, error) {
 		tabID = string(targets[0].TargetID)
 	}
 
-	// Check registry first
+	// Fast path: read lock
+	bridge.mu.RLock()
+	if entry, ok := bridge.tabs[tabID]; ok {
+		bridge.mu.RUnlock()
+		return entry.ctx, tabID, nil
+	}
+	bridge.mu.RUnlock()
+
+	// Slow path: write lock, double-check
+	bridge.mu.Lock()
+	defer bridge.mu.Unlock()
+
+	// Double-check after acquiring write lock
 	if entry, ok := bridge.tabs[tabID]; ok {
 		return entry.ctx, tabID, nil
 	}
 
-	// Create new context for this target
 	ctx, cancel := chromedp.NewContext(bridge.browserCtx,
 		chromedp.WithTargetID(target.ID(tabID)),
 	)
 	if err := chromedp.Run(ctx); err != nil {
 		cancel()
-		return nil, "", fmt.Errorf("tab %s not found: %v", tabID, err)
+		return nil, "", fmt.Errorf("tab %s not found: %w", tabID, err)
 	}
 
 	bridge.tabs[tabID] = &TabEntry{ctx: ctx, cancel: cancel}
@@ -857,9 +899,17 @@ func tabContext(tabID string) (context.Context, string, error) {
 }
 
 // cleanStaleTabs periodically removes tab entries whose targets no longer exist.
-func (b *Bridge) cleanStaleTabs(interval time.Duration) {
+// Exits when ctx is cancelled.
+func (b *Bridge) cleanStaleTabs(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	for {
-		time.Sleep(interval)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
 
 		targets, err := listTargets()
 		if err != nil {
@@ -895,7 +945,7 @@ func listTargets() ([]*target.Info, error) {
 			return err
 		}),
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get targets: %w", err)
 	}
 
 	pages := make([]*target.Info, 0)
@@ -909,18 +959,19 @@ func listTargets() ([]*target.Info, error) {
 
 // ── Session persistence ────────────────────────────────────
 
-// markCleanExit patches Chrome's preferences to prevent "didn't shut down correctly" bar
+// markCleanExit patches Chrome's preferences to prevent "didn't shut down correctly" bar.
 func markCleanExit() {
 	prefsPath := filepath.Join(profileDir, "Default", "Preferences")
 	data, err := os.ReadFile(prefsPath)
 	if err != nil {
 		return
 	}
-	// Replace "exit_type":"Crashed" with "exit_type":"Normal"
 	patched := strings.ReplaceAll(string(data), `"exit_type":"Crashed"`, `"exit_type":"Normal"`)
 	patched = strings.ReplaceAll(patched, `"exited_cleanly":false`, `"exited_cleanly":true`)
 	if patched != string(data) {
-		os.WriteFile(prefsPath, []byte(patched), 0644)
+		if err := os.WriteFile(prefsPath, []byte(patched), 0644); err != nil {
+			log.Printf("Failed to patch prefs: %v", err)
+		}
 	}
 }
 
@@ -947,7 +998,11 @@ func saveState() {
 		SavedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 
-	data, _ := json.MarshalIndent(state, "", "  ")
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		log.Printf("Failed to marshal state: %v", err)
+		return
+	}
 	path := filepath.Join(stateDir, "sessions.json")
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		log.Printf("Failed to write state: %v", err)
@@ -969,12 +1024,10 @@ func restoreState() {
 
 	restored := 0
 	for _, tab := range state.Tabs {
-		// Skip problematic URLs
 		if strings.Contains(tab.URL, "/sorry/") || strings.Contains(tab.URL, "about:blank") {
 			continue
 		}
 		ctx, cancel := chromedp.NewContext(bridge.browserCtx)
-		// Timeout per tab — don't let one hung page block startup
 		tCtx, tCancel := context.WithTimeout(ctx, 10*time.Second)
 		if err := chromedp.Run(tCtx, chromedp.Navigate(tab.URL)); err != nil {
 			tCancel()
@@ -1022,10 +1075,19 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 // ── Helpers ────────────────────────────────────────────────
 
+// cancelOnClientDone cancels the given cancel func when the HTTP request context is done.
+// Use as: go cancelOnClientDone(r.Context(), tCancel)
+func cancelOnClientDone(reqCtx context.Context, cancel context.CancelFunc) {
+	<-reqCtx.Done()
+	cancel()
+}
+
 func jsonResp(w http.ResponseWriter, code int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("json encode: %v", err)
+	}
 }
 
 func jsonErr(w http.ResponseWriter, code int, err error) {
