@@ -180,6 +180,45 @@ All via environment variables:
 
 Playwright MCP, OpenClaw, and Browser Use all default to accessibility trees for the same reason.
 
+## Benchmarks
+
+Tested on Hacker News front page (30 stories, ~350 interactive elements).
+MacBook Pro M-series, both running headless.
+
+### Speed
+
+| Operation | Pinchtab | OpenClaw Browser | Winner |
+|-----------|----------|-----------------|--------|
+| Snapshot | **26ms** | ~500ms | Pinchtab 19x |
+| Screenshot | ~200ms | ~200ms | Tie |
+| Text extract | **7ms** | — | Pinchtab |
+| Click (by ref) | **7ms** | ~100ms | Pinchtab 14x |
+
+Pinchtab talks directly to Chrome via CDP. OpenClaw routes through Node.js → Playwright → CDP, adding IPC overhead.
+
+### Token Consumption
+
+| Method | Tokens | vs Screenshot |
+|--------|--------|---------------|
+| Screenshot (vision model) | ~2,000 | baseline |
+| Pinchtab `?filter=interactive` | ~4,375 | +119% |
+| OpenClaw snapshot | ~13,000 | +550% |
+| Pinchtab full snapshot | ~18,958 | +848% |
+| Pinchtab `/text` only | ~1,031 | **-48%** |
+
+### Cost per 10-Step Task
+
+At Claude Sonnet pricing ($3/M input tokens):
+
+| Approach | Tokens | Cost | vs Screenshot |
+|----------|--------|------|---------------|
+| Screenshot-based | 20,000 | $0.060 | baseline |
+| Pinchtab interactive | 43,750 | $0.131 | +119% |
+| OpenClaw snapshots | 130,000 | $0.390 | +550% |
+| Pinchtab text-only | 10,310 | $0.031 | -48% |
+
+> **The real savings aren't in token count — they're in model choice.** Screenshots require a vision model ($3/M for Sonnet). Accessibility snapshots work with *any* text LLM, including Haiku at $0.25/M input. That's a **12x cost reduction** for the same task, with more reliable element targeting.
+
 ## Compared To
 
 | | Pinchtab | Steel Browser | Playwright MCP | OpenClaw Browser |
