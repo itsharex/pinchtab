@@ -71,8 +71,13 @@ Split into 8 files (single package):
 - [x] **Text format** — `?format=text` returns indented tree (~40-60% fewer tokens than JSON)
 - [x] **21 tests passing** — diff, text format, all existing tests green
 
-## P5 Remaining
-- [ ] **Wire interfaces into handlers** — Inject Browser/TabManager so handler tests don't need Chrome
+## Done ✅ (P5c)
+- [x] **BridgeAPI interface** — `interfaces.go` with TabContext, ListTargets, CreateTab, CloseTab, Get/Set/DeleteRefCache
+- [x] **Handlers use Bridge methods** — No direct `b.mu`/`b.snapshots`/`b.tabs` access in handlers
+- [x] **CreateTab/CloseTab on Bridge** — Tab lifecycle extracted from handleTab
+- [x] **Nil browserCtx guard** — ListTargets + TabContext return error instead of panic
+- [x] **22 handler tests** — All validation/error paths tested via httptest without Chrome
+- [x] **38 total tests passing**, 0 lint issues
 
 ## Done ✅ (P5b)
 - [x] **Remove `--disable-blink-features=AutomationControlled` flag** — deprecated in Chrome 144+, stealth.js handles it

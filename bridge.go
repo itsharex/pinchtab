@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
@@ -52,7 +53,7 @@ func (b *Bridge) TabContext(tabID string) (context.Context, string, error) {
 
 	// Fast path: read lock
 	b.mu.RLock()
-	if entry, ok := b.tabs[tabID]; ok {
+	if entry, ok := b.tabs[tabID]; ok && entry.ctx != nil {
 		b.mu.RUnlock()
 		return entry.ctx, tabID, nil
 	}
@@ -62,8 +63,12 @@ func (b *Bridge) TabContext(tabID string) (context.Context, string, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if entry, ok := b.tabs[tabID]; ok {
+	if entry, ok := b.tabs[tabID]; ok && entry.ctx != nil {
 		return entry.ctx, tabID, nil
+	}
+
+	if b.browserCtx == nil {
+		return nil, "", fmt.Errorf("no browser connection")
 	}
 
 	ctx, cancel := chromedp.NewContext(b.browserCtx,
@@ -116,8 +121,75 @@ func (b *Bridge) CleanStaleTabs(ctx context.Context, interval time.Duration) {
 	}
 }
 
+// GetRefCache returns the cached snapshot refs for a tab (nil if none).
+func (b *Bridge) GetRefCache(tabID string) *refCache {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.snapshots[tabID]
+}
+
+// SetRefCache stores the snapshot ref cache for a tab.
+func (b *Bridge) SetRefCache(tabID string, cache *refCache) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.snapshots[tabID] = cache
+}
+
+// DeleteRefCache removes the snapshot ref cache for a tab.
+func (b *Bridge) DeleteRefCache(tabID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.snapshots, tabID)
+}
+
+// CreateTab opens a new tab, navigates to url, and returns its ID and context.
+func (b *Bridge) CreateTab(url string) (string, context.Context, context.CancelFunc, error) {
+	ctx, cancel := chromedp.NewContext(b.browserCtx)
+
+	navURL := "about:blank"
+	if url != "" {
+		navURL = url
+	}
+	if err := navigatePage(ctx, navURL); err != nil {
+		cancel()
+		return "", nil, nil, fmt.Errorf("new tab: %w", err)
+	}
+
+	newTargetID := string(chromedp.FromContext(ctx).Target.TargetID)
+	b.mu.Lock()
+	b.tabs[newTargetID] = &TabEntry{ctx: ctx, cancel: cancel}
+	b.mu.Unlock()
+
+	return newTargetID, ctx, cancel, nil
+}
+
+// CloseTab closes a tab by ID and cleans up caches.
+func (b *Bridge) CloseTab(tabID string) error {
+	b.mu.Lock()
+	if entry, ok := b.tabs[tabID]; ok {
+		if entry.cancel != nil {
+			entry.cancel()
+		}
+		delete(b.tabs, tabID)
+		delete(b.snapshots, tabID)
+	}
+	b.mu.Unlock()
+
+	ctx, cancel := chromedp.NewContext(b.browserCtx,
+		chromedp.WithTargetID(target.ID(tabID)),
+	)
+	defer cancel()
+	if err := chromedp.Run(ctx, page.Close()); err != nil {
+		return fmt.Errorf("close tab: %w", err)
+	}
+	return nil
+}
+
 // ListTargets returns all open page targets from Chrome.
 func (b *Bridge) ListTargets() ([]*target.Info, error) {
+	if b.browserCtx == nil {
+		return nil, fmt.Errorf("no browser connection")
+	}
 	var targets []*target.Info
 	if err := chromedp.Run(b.browserCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {

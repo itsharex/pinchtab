@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
 
@@ -176,9 +175,7 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b.mu.Lock()
-	delete(b.snapshots, resolvedTabID)
-	b.mu.Unlock()
+	b.DeleteRefCache(resolvedTabID)
 
 	var url, title string
 	_ = chromedp.Run(tCtx,
@@ -337,9 +334,7 @@ func (b *Bridge) handleAction(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve ref to backendNodeID from cached snapshot
 	if req.Ref != "" && req.NodeID == 0 && req.Selector == "" {
-		b.mu.RLock()
-		cache := b.snapshots[resolvedTabID]
-		b.mu.RUnlock()
+		cache := b.GetRefCache(resolvedTabID)
 		if cache != nil {
 			if nid, ok := cache.refs[req.Ref]; ok {
 				req.NodeID = nid
@@ -420,22 +415,11 @@ func (b *Bridge) handleTab(w http.ResponseWriter, r *http.Request) {
 
 	switch req.Action {
 	case tabActionNew:
-		ctx, cancel := chromedp.NewContext(b.browserCtx)
-
-		url := "about:blank"
-		if req.URL != "" {
-			url = req.URL
-		}
-		if err := navigatePage(ctx, url); err != nil {
-			cancel()
-			jsonErr(w, 500, fmt.Errorf("new tab: %w", err))
+		newTargetID, ctx, _, err := b.CreateTab(req.URL)
+		if err != nil {
+			jsonErr(w, 500, err)
 			return
 		}
-
-		newTargetID := string(chromedp.FromContext(ctx).Target.TargetID)
-		b.mu.Lock()
-		b.tabs[newTargetID] = &TabEntry{ctx: ctx, cancel: cancel}
-		b.mu.Unlock()
 
 		var curURL, title string
 		_ = chromedp.Run(ctx, chromedp.Location(&curURL), chromedp.Title(&title))
@@ -447,22 +431,8 @@ func (b *Bridge) handleTab(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		b.mu.Lock()
-		if entry, ok := b.tabs[req.TabID]; ok {
-			if entry.cancel != nil {
-				entry.cancel()
-			}
-			delete(b.tabs, req.TabID)
-			delete(b.snapshots, req.TabID)
-		}
-		b.mu.Unlock()
-
-		ctx, cancel := chromedp.NewContext(b.browserCtx,
-			chromedp.WithTargetID(target.ID(req.TabID)),
-		)
-		defer cancel()
-		if err := chromedp.Run(ctx, page.Close()); err != nil {
-			jsonErr(w, 500, fmt.Errorf("close tab: %w", err))
+		if err := b.CloseTab(req.TabID); err != nil {
+			jsonErr(w, 500, err)
 			return
 		}
 		jsonResp(w, 200, map[string]any{"closed": true})

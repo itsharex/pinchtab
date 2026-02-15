@@ -59,17 +59,13 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	// Get previous snapshot for diff before overwriting cache
 	var prevNodes []A11yNode
 	if doDiff {
-		b.mu.RLock()
-		if prev := b.snapshots[resolvedTabID]; prev != nil {
+		if prev := b.GetRefCache(resolvedTabID); prev != nil {
 			prevNodes = prev.nodes
 		}
-		b.mu.RUnlock()
 	}
 
 	// Cache ref→nodeID mapping and nodes for this tab
-	b.mu.Lock()
-	b.snapshots[resolvedTabID] = &refCache{refs: refs, nodes: flat}
-	b.mu.Unlock()
+	b.SetRefCache(resolvedTabID, &refCache{refs: refs, nodes: flat})
 
 	var url, title string
 	_ = chromedp.Run(tCtx,
