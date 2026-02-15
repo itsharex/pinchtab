@@ -135,7 +135,7 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "# %s\n# %s\n# %d nodes\n\n", title, url, len(flat))
-		w.Write([]byte(formatSnapshotText(flat)))
+		_, _ = w.Write([]byte(formatSnapshotText(flat)))
 		return
 	}
 
@@ -317,7 +317,7 @@ func (b *Bridge) actionRegistry() map[string]ActionFunc {
 			}
 			// Optional: wait for navigation after click (e.g. link clicks)
 			if req.WaitNav {
-				chromedp.Run(ctx, chromedp.Sleep(waitNavDelay))
+				_ = chromedp.Run(ctx, chromedp.Sleep(waitNavDelay))
 			}
 			return map[string]any{"clicked": true}, nil
 		},

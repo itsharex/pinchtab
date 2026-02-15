@@ -181,9 +181,9 @@ func TestDiffSnapshot(t *testing.T) {
 		{Ref: "e2", Role: "link", Name: "Old Link", NodeID: 30},
 	}
 	curr := []A11yNode{
-		{Ref: "e0", Role: "button", Name: "Submit", NodeID: 10},          // unchanged
+		{Ref: "e0", Role: "button", Name: "Submit", NodeID: 10},              // unchanged
 		{Ref: "e1", Role: "textbox", Name: "Email", NodeID: 20, Value: "hi"}, // changed (value)
-		{Ref: "e3", Role: "link", Name: "New Link", NodeID: 40},          // added
+		{Ref: "e3", Role: "link", Name: "New Link", NodeID: 40},              // added
 	}
 
 	added, changed, removed := diffSnapshot(prev, curr)
