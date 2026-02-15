@@ -31,6 +31,17 @@ curl localhost:18800/text?tabId=X
 curl -X POST localhost:18800/action -d '{"kind":"click","ref":"e5"}'
 ```
 
+| | Pinchtab | OpenClaw Browser | Playwright MCP | Steel Browser |
+|---|---|---|---|---|
+| Interface | HTTP | Internal | MCP | HTTP |
+| Works with any agent | ✅ | ❌ | ❌ | ✅ |
+| A11y snapshots | ✅ | ✅ | ✅ | ❌ |
+| Element interaction | ✅ | ✅ | ✅ | ❌ |
+| Stealth mode | ✅ | ❌ | ❌ | ✅ |
+| Session persistence | ✅ | ❌ | ❌ | ✅ |
+| Self-contained binary | ✅ 12MB | ❌ | ❌ | ❌ |
+| Lines of code | ~600 | — | ~5,000 | ~12,000 |
+
 - **5-13x cheaper** than screenshots or full snapshots for read-heavy tasks ([real measurements](#token-efficiency--real-numbers))
 - **Plain HTTP API** — not locked to any agent framework
 - **Self-contained** — 12MB binary, launches its own Chrome, zero config
@@ -211,20 +222,6 @@ For read-heavy tasks (monitoring feeds, scraping search results), `/text` at ~80
 | Pinchtab interactive filter | ~180,000 | $0.05 |
 
 Use `/text` when you only need content. Use `?filter=interactive` when you need to act. Use the full snapshot when you need page structure.
-
-## Compared To
-
-| | Pinchtab | Steel Browser | Playwright MCP | OpenClaw Browser |
-|---|---|---|---|---|
-| A11y snapshots | ✅ | ❌ | ✅ | ✅ |
-| Element interaction | ✅ | ❌ | ✅ | ✅ |
-| Interface | HTTP | HTTP | MCP | Internal |
-| Any agent | ✅ | ✅ | ❌ | ❌ |
-| Stealth mode | ✅ | ✅ | ❌ | ❌ |
-| Session persistence | ✅ | ✅ | ❌ | ❌ |
-| Self-launching Chrome | ✅ | Docker | ❌ | ✅ |
-| Single binary | ✅ 12MB | ❌ | ❌ | ❌ |
-| Lines of code | ~600 | ~12,000 | ~5,000 | — |
 
 ## Built With
 
