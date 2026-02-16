@@ -101,10 +101,10 @@ func (b *Bridge) RestoreState() {
 	// Limit concurrent tab creation to avoid overwhelming Chrome
 	const maxConcurrentTabs = 3
 	const maxConcurrentNavs = 2
-	
+
 	tabSem := make(chan struct{}, maxConcurrentTabs)
 	navSem := make(chan struct{}, maxConcurrentNavs)
-	
+
 	restored := 0
 	for _, tab := range state.Tabs {
 		if strings.Contains(tab.URL, "/sorry/") || strings.Contains(tab.URL, "about:blank") {
@@ -113,7 +113,7 @@ func (b *Bridge) RestoreState() {
 
 		// Acquire semaphore for tab creation
 		tabSem <- struct{}{}
-		
+
 		// Small delay between tab creations to spread load
 		if restored > 0 {
 			time.Sleep(200 * time.Millisecond)
@@ -127,7 +127,7 @@ func (b *Bridge) RestoreState() {
 			slog.Warn("restore tab failed", "url", tab.URL, "err", err)
 			continue
 		}
-		
+
 		newID := string(chromedp.FromContext(ctx).Target.TargetID)
 		b.mu.Lock()
 		b.tabs[newID] = &TabEntry{ctx: ctx, cancel: cancel}
@@ -137,11 +137,11 @@ func (b *Bridge) RestoreState() {
 		// Fire-and-forget navigate with concurrency limiting
 		go func(tabCtx context.Context, url string) {
 			defer func() { <-tabSem }() // Release tab semaphore when done
-			
+
 			// Acquire navigation semaphore
 			navSem <- struct{}{}
 			defer func() { <-navSem }()
-			
+
 			tCtx, tCancel := context.WithTimeout(tabCtx, 15*time.Second)
 			defer tCancel()
 			_ = chromedp.Run(tCtx, chromedp.ActionFunc(func(ctx context.Context) error {
