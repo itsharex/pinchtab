@@ -47,26 +47,38 @@ func main() {
 			chromedp.NoFirstRun,
 			chromedp.NoDefaultBrowserCheck,
 
-			// Stealth: hide automation indicators
-			// Note: --disable-blink-features=AutomationControlled removed — deprecated
-			// in Chrome 144+, triggers warning banner. stealth.js handles navigator.webdriver.
+			// Advanced stealth: hide automation indicators
 			chromedp.Flag("exclude-switches", "enable-automation"),
+			chromedp.Flag("disable-blink-features", "AutomationControlled"),
 			chromedp.Flag("disable-infobars", true),
+			chromedp.Flag("disable-dev-shm-usage", true),
+			chromedp.Flag("disable-renderer-backgrounding", true),
+			chromedp.Flag("disable-background-timer-throttling", true),
+			chromedp.Flag("disable-backgrounding-occluded-windows", true),
+			chromedp.Flag("disable-client-side-phishing-detection", true),
+			chromedp.Flag("disable-default-apps", true),
+			chromedp.Flag("disable-hang-monitor", true),
+			chromedp.Flag("disable-prompt-on-repost", true),
+			chromedp.Flag("disable-sync", true),
+			chromedp.Flag("disable-web-security", false), // Keep security enabled for realistic behavior
 
 			// Performance & networking
 			chromedp.Flag("disable-background-networking", false),
 			chromedp.Flag("enable-features", "NetworkService,NetworkServiceInProcess"),
 			chromedp.Flag("disable-popup-blocking", true),
-			chromedp.Flag("disable-default-apps", false),
 			chromedp.Flag("no-first-run", true),
 
-			// UI: suppress crash bar
+			// UI: suppress crash bar and notifications
 			chromedp.Flag("disable-session-crashed-bubble", true),
 			chromedp.Flag("hide-crash-restore-bubble", true),
+			chromedp.Flag("disable-device-discovery-notifications", true),
 
-			// Identity
-			chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"),
-			chromedp.WindowSize(1440, 900),
+			// Random seed for consistent behavior across runs
+			chromedp.Flag("js-flags", "--random-seed=1157259157"),
+
+			// Identity - more realistic user agent with proper versioning
+			chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
+			chromedp.WindowSize(1366, 768), // More common resolution
 		}
 
 		if headless {
