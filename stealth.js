@@ -96,3 +96,81 @@ EventTarget.prototype.addEventListener = function(type, listener, options) {
   }
   return originalAddEventListener.call(this, type, listener, options);
 };
+
+// Canvas fingerprinting noise
+const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+const originalToBlob = HTMLCanvasElement.prototype.toBlob;
+const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+
+HTMLCanvasElement.prototype.toDataURL = function(...args) {
+  const context = this.getContext('2d');
+  if (context) {
+    const width = this.width;
+    const height = this.height;
+    const imageData = context.getImageData(0, 0, width, height);
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      imageData.data[i] = Math.min(255, Math.max(0, imageData.data[i] + (Math.random() - 0.5) * 0.5));
+      imageData.data[i+1] = Math.min(255, Math.max(0, imageData.data[i+1] + (Math.random() - 0.5) * 0.5));
+      imageData.data[i+2] = Math.min(255, Math.max(0, imageData.data[i+2] + (Math.random() - 0.5) * 0.5));
+    }
+    context.putImageData(imageData, 0, 0);
+  }
+  return originalToDataURL.apply(this, args);
+};
+
+HTMLCanvasElement.prototype.toBlob = function(callback, ...args) {
+  const dataURL = this.toDataURL();
+  originalToBlob.call(this, callback, ...args);
+};
+
+CanvasRenderingContext2D.prototype.getImageData = function(...args) {
+  const imageData = originalGetImageData.apply(this, args);
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    imageData.data[i] = Math.min(255, Math.max(0, imageData.data[i] + (Math.random() - 0.5) * 0.3));
+    imageData.data[i+1] = Math.min(255, Math.max(0, imageData.data[i+1] + (Math.random() - 0.5) * 0.3));
+    imageData.data[i+2] = Math.min(255, Math.max(0, imageData.data[i+2] + (Math.random() - 0.5) * 0.3));
+  }
+  return imageData;
+};
+
+// Font fingerprinting protection
+const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
+CanvasRenderingContext2D.prototype.measureText = function(text) {
+  const metrics = originalMeasureText.apply(this, arguments);
+  const noise = 0.01 * Math.random();
+  return {
+    ...metrics,
+    width: metrics.width * (1 + noise)
+  };
+};
+
+// WebRTC IP leak prevention
+if (window.RTCPeerConnection) {
+  window.RTCPeerConnection = new Proxy(window.RTCPeerConnection, {
+    construct: function(target, args) {
+      const pc = new target(...args);
+      pc.createDataChannel = new Proxy(pc.createDataChannel, {
+        apply: function() { throw new Error('WebRTC blocked'); }
+      });
+      pc.createOffer = new Proxy(pc.createOffer, {
+        apply: function() { throw new Error('WebRTC blocked'); }
+      });
+      return pc;
+    }
+  });
+}
+
+// Timezone spoofing
+Object.defineProperty(Date.prototype, 'getTimezoneOffset', {
+  value: function() { return -300; } // EST
+});
+
+// Hardware concurrency spoofing
+Object.defineProperty(navigator, 'hardwareConcurrency', {
+  get: () => 4 + Math.floor(Math.random() * 4)
+});
+
+// Device memory spoofing
+Object.defineProperty(navigator, 'deviceMemory', {
+  get: () => 4 + Math.floor(Math.random() * 4) * 2
+});
