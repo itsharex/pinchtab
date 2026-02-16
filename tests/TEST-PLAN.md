@@ -1,0 +1,237 @@
+# Pinchtab Test Plan
+
+**Goal:** Establish a repeatable test suite to validate Pinchtab for stable release.
+
+**Scope:** Functional correctness, regression, edge cases. Covers headless and headed modes, single and multi-agent scenarios.
+
+**How to run:** Each scenario can be executed manually via `curl` or scripted. Integration tests requiring Chrome should use build tag `integration`.
+
+---
+
+## 1. Core Endpoints — Headless Single Agent
+
+### 1.1 Health & Startup
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| H1 | Health check | `GET /health` | 200, `{"status":"ok"}` |
+| H2 | Startup headless | `BRIDGE_HEADLESS=true ./pinchtab` | Launches, binds port, Chrome not visible |
+| H3 | Startup headed | `./pinchtab` | Chrome window opens, visible |
+| H4 | Custom port | `BRIDGE_PORT=9999 ./pinchtab` | Binds to 9999 |
+| H5 | Auth token required | `BRIDGE_TOKEN=secret ./pinchtab`, then `GET /health` without token | 401 |
+| H6 | Auth token accepted | `GET /health` with `Authorization: Bearer secret` | 200 |
+| H7 | Graceful shutdown | Send SIGINT | Chrome closes, port released, exit 0 |
+
+### 1.2 Navigation
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| N1 | Basic navigate | `POST /navigate {"url":"https://example.com"}` | 200, title="Example Domain", url matches |
+| N2 | Navigate returns title | Navigate to `https://www.bbc.co.uk` | Title = "BBC - Home" (or similar) |
+| N3 | Navigate SPA (slow title) | Navigate to `https://x.com` | Title may be empty (known limitation for heavy SPAs) |
+| N4 | Navigate with newTab | `POST /navigate {"url":"...","newTab":true}` | New tab created, new tabId returned, tab count +1 |
+| N5 | Navigate invalid URL | `POST /navigate {"url":"not-a-url"}` | Error response, no crash |
+| N6 | Navigate missing URL | `POST /navigate {}` | 400, clear error message |
+| N7 | Navigate bad JSON | `POST /navigate {broken` | 400, JSON parse error |
+| N8 | Navigate timeout | Navigate to extremely slow/hanging URL | Returns within timeout, error or partial |
+
+### 1.3 Snapshot (Accessibility Tree)
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| S1 | Basic snapshot | Navigate to example.com, `GET /snapshot` | Valid JSON, nodes array, refs (e0, e1...) |
+| S2 | Interactive filter | `GET /snapshot?filter=interactive` | Only buttons, links, inputs returned |
+| S3 | Depth filter | `GET /snapshot?depth=2` | Tree truncated at depth 2 |
+| S4 | Text format | `GET /snapshot?format=text` | Indented plain text, not JSON |
+| S5 | YAML format | `GET /snapshot?format=yaml` | Valid YAML output |
+| S6 | Diff mode | Snapshot twice with `?diff=true` on second | Second returns only changes |
+| S7 | Diff first call | `GET /snapshot?diff=true` (no prior snapshot) | Full snapshot (no previous to diff against) |
+| S8 | File output | `GET /snapshot?output=file&path=/tmp/test.json` | File written, response confirms path |
+| S9 | Snapshot with tabId | `GET /snapshot?tabId=<specific>` | Returns snapshot for that specific tab |
+| S10 | Snapshot no tab | Close all tabs, `GET /snapshot` | Error: no tab available |
+| S11 | Large page | Navigate to Wikipedia article, snapshot | Handles 20K+ token pages without error |
+| S12 | Ref stability | Snapshot → click → snapshot | Refs for unchanged elements stay the same |
+
+### 1.4 Text Extraction
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| T1 | Readability mode | Navigate to BBC article, `GET /text` | Clean article text, no nav/ads |
+| T2 | Raw mode | `GET /text?mode=raw` | Full innerText including nav/footer |
+| T3 | Text with tabId | `GET /text?tabId=<specific>` | Text from correct tab |
+| T4 | Text no tab | `GET /text` with no tabs | Error response |
+| T5 | Token efficiency | `/text` on Google | ~150 tokens (not 700+, language blob removed) |
+
+### 1.5 Actions
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| A1 | Click by ref | Snapshot, find button ref, `POST /action {"kind":"click","ref":"eN"}` | Click executed, page state changes |
+| A2 | Type by ref | Find input ref, `POST /action {"kind":"type","ref":"eN","text":"hello"}` | Text entered in input |
+| A3 | Fill by ref | `POST /action {"kind":"fill","ref":"eN","text":"hello"}` | Input value set (no key events) |
+| A4 | Press key | `POST /action {"kind":"press","key":"Enter"}` | Key pressed |
+| A5 | Focus | `POST /action {"kind":"focus","ref":"eN"}` | Element focused |
+| A6 | Hover | `POST /action {"kind":"hover","ref":"eN"}` | Hover state triggered |
+| A7 | Select option | Find select ref, `POST /action {"kind":"select","ref":"eN","value":"opt1"}` | Option selected |
+| A8 | Scroll | `POST /action {"kind":"scroll","direction":"down"}` | Page scrolls |
+| A9 | Unknown kind | `POST /action {"kind":"dance"}` | 400, lists valid kinds |
+| A10 | Missing kind | `POST /action {"ref":"e0"}` | 400, clear error about missing kind |
+| A11 | Ref not found | `POST /action {"kind":"click","ref":"e9999"}` | Error: ref not found |
+| A12 | CSS selector | `POST /action {"kind":"click","selector":"#submit"}` | Click by CSS selector |
+| A13 | Action no tab | Close tabs, `POST /action {"kind":"click","ref":"e0"}` | Error: no tab |
+| A14 | Batch actions | `POST /actions [{"kind":"click","ref":"e1"},{"kind":"type","ref":"e2","text":"hi"}]` | Both executed in order |
+| A15 | Batch empty | `POST /actions []` | Error: empty batch |
+| A16 | Human click | `POST /action {"kind":"humanClick","ref":"eN"}` | Bezier mouse movement + click |
+| A17 | Human type | `POST /action {"kind":"humanType","ref":"eN","text":"hello"}` | Natural typing with variable delays |
+
+### 1.6 Tabs
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| TB1 | List tabs | `GET /tabs` | Array of tab objects with id, url, title |
+| TB2 | New tab | `POST /tab {"action":"new","url":"https://example.com"}` | New tab opened, id returned |
+| TB3 | Close tab | `POST /tab {"action":"close","tabId":"<id>"}` | Tab closed, tab count -1 |
+| TB4 | Close without tabId | `POST /tab {"action":"close"}` | 400, tabId required |
+| TB5 | Bad action | `POST /tab {"action":"explode"}` | 400, invalid action |
+| TB6 | Max tabs | Open 3+ tabs (default limit) | Error or blocks at limit |
+
+### 1.7 Screenshots
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| SS1 | Basic screenshot | `GET /screenshot` | JPEG image data |
+| SS2 | Raw screenshot | `GET /screenshot?raw=true` | Raw JPEG bytes (no base64) |
+| SS3 | Screenshot no tab | `GET /screenshot` with no tabs | Error |
+
+### 1.8 JavaScript Evaluation
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| E1 | Simple eval | `POST /evaluate {"expression":"1+1"}` | `{"result":"2"}` |
+| E2 | DOM eval | `POST /evaluate {"expression":"document.title"}` | Returns page title |
+| E3 | Missing expression | `POST /evaluate {}` | 400, error message |
+| E4 | Bad JSON | `POST /evaluate {broken` | 400, parse error |
+| E5 | Eval no tab | `POST /evaluate {"expression":"1"}` with no tabs | Error |
+
+### 1.9 Cookies
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| C1 | Get cookies | Navigate to site, `GET /cookies` | Returns cookie array |
+| C2 | Set cookies | `POST /cookies {"url":"...","cookies":[...]}` | Cookies set |
+| C3 | Get cookies no tab | `GET /cookies` with no tabs | Error |
+| C4 | Set cookies bad JSON | `POST /cookies {broken` | 400 |
+| C5 | Set cookies empty | `POST /cookies {"url":"...","cookies":[]}` | Error or no-op |
+
+### 1.10 Stealth
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| ST1 | Stealth status | `GET /stealth/status` | JSON with feature booleans and score |
+| ST2 | Webdriver hidden | Navigate, eval `navigator.webdriver` | `undefined` |
+| ST3 | Chrome runtime present | Eval `!!window.chrome.runtime` | `true` |
+| ST4 | Plugins present | Eval `navigator.plugins.length` | > 0 |
+| ST5 | Fingerprint rotate | `POST /fingerprint/rotate {"os":"windows"}` | New fingerprint applied |
+| ST6 | Fingerprint rotate random | `POST /fingerprint/rotate {}` | Random OS selected |
+| ST7 | Fingerprint no tab | `POST /fingerprint/rotate {}` with no tabs | Error |
+| ST8 | Bot detection site | Navigate to `bot.sannysoft.com` | Most checks pass (green) |
+
+### 1.11 Configuration
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| CF1 | Config file | Create `~/.pinchtab/config.json` with port override, start | Uses config port |
+| CF2 | Env overrides config | Set `BRIDGE_PORT` env + config file port | Env wins |
+| CF3 | CDP_URL external Chrome | `CDP_URL=ws://... ./pinchtab` | Connects to existing Chrome, no launch |
+| CF4 | Custom profile dir | `BRIDGE_PROFILE=/tmp/test-profile ./pinchtab` | Uses specified profile |
+| CF5 | No restore | `BRIDGE_NO_RESTORE=true ./pinchtab` | Doesn't restore previous tabs |
+
+### 1.12 Session Persistence
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| SP1 | Tab restore | Open tabs, stop, restart | Previous tabs restored |
+| SP2 | Cookie persistence | Log into site, restart | Still logged in |
+| SP3 | No restore flag | Open tabs, restart with `BRIDGE_NO_RESTORE=true` | Clean start, no old tabs |
+
+---
+
+## 2. Headed Mode — Additional Scenarios
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| HM1 | Chrome visible | Start without `BRIDGE_HEADLESS` | Chrome window visible, interactable |
+| HM2 | Manual + API coexist | Manually browse in Chrome + API calls | Both work, no conflicts |
+| HM3 | Manual login persists | Log into GitHub manually in Chrome window | `/cookies` shows session, persists on restart |
+
+---
+
+## 3. Multi-Agent Scenarios
+
+Multiple agents (or concurrent scripts) hitting the same Pinchtab instance.
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| MA1 | Concurrent reads | Two agents snapshot different tabs by tabId simultaneously | Both get correct results |
+| MA2 | Concurrent navigates | Agent A navigates tab1, Agent B navigates tab2 (by tabId) | Both succeed, no cross-talk |
+| MA3 | Tab isolation | Agent A works on tab1, Agent B on tab2 | Actions don't leak across tabs |
+| MA4 | Concurrent actions | Agent A clicks on tab1, Agent B types on tab2 | Both succeed |
+| MA5 | Ref collision | Both agents snapshot same tab, get same refs | Refs consistent, actions work for both |
+| MA6 | Rapid fire | 10 concurrent `/snapshot` requests | All return valid data, no 500s |
+| MA7 | Tab limit | Two agents both try to open tabs up to limit | One gets error, no crash |
+| MA8 | No tabId default | Agent A navigates, Agent B calls `/snapshot` (no tabId) | Returns *some* tab (undefined which — this is the active tab tracking issue) |
+
+---
+
+## 4. Error Handling & Edge Cases
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| ER1 | Chrome crash recovery | Kill Chrome process while Pinchtab running | Pinchtab detects, returns errors (not hang) |
+| ER2 | Large page snapshot | Navigate to page with 1000+ a11y nodes | Returns full snapshot, no timeout |
+| ER3 | Binary page | Navigate to PDF/image URL | Handles gracefully (error or empty snapshot) |
+| ER4 | Rapid navigate | 5 navigates in 1 second | No crash, last one wins |
+| ER5 | Unicode content | Navigate to page with CJK/emoji/RTL | Text and snapshot handle correctly |
+| ER6 | Empty page | Navigate to `about:blank` | Snapshot returns minimal tree |
+| ER7 | Connection refused (CDP_URL) | `CDP_URL=ws://localhost:1111` | Clear error message, exits |
+| ER8 | Port in use | Start two instances on same port | Second fails with clear error |
+
+---
+
+## 5. Known Issues (from QA rounds)
+
+Track these separately — they are known bugs, not test failures.
+
+| # | Issue | Severity | Status | Notes |
+|---|-------|----------|--------|-------|
+| K1 | Active tab tracking unreliable after navigate | 🔴 P0 | OPEN | `/text` and `/snapshot` return stale tab. Workaround: always pass `tabId` explicitly. |
+| K2 | Tab close hangs | 🟡 P1 | OPEN | Regression from Round 2 fixes. Was 400, now hangs indefinitely. |
+| K3 | x.com title always empty | 🟢 P2 | OPEN | SPA hydration too slow for navigate timeout. |
+| K4 | Chrome flag warning banner | 🟢 P2 | OPEN | `--disable-blink-features=AutomationControlled` deprecated in Chrome 144+. |
+| K5 | Stealth PRNG weak (8F-2) | 🟡 P1 | OPEN | `Math.sin` seeded PRNG, session seed may drift between navigations. |
+| K6 | Chrome UA hardcoded to 131 (8F-6) | 🟡 P1 | OPEN | Current stable is 133+. |
+| K7 | Fingerprint rotation JS-only (8F-7) | 🟢 P2 | OPEN | Detectable via `getOwnPropertyDescriptor`. |
+| K8 | Timezone hardcoded EST (8F-9) | 🟢 P2 | OPEN | `Intl.DateTimeFormat` leaks real TZ. |
+| K9 | Stealth status hardcoded (8F-10) | 🟢 P2 | OPEN | No actual browser probing. |
+
+---
+
+## 6. Release Criteria for Stable v1.0
+
+### Must Pass (P0)
+- All Section 1 scenarios (core endpoints) pass in headless
+- All Section 1 scenarios pass in headed
+- K1 (active tab tracking) fixed OR documented as "always use tabId"
+- K2 (tab close hangs) fixed
+- Zero crashes across full test suite
+- `go test ./...` 100% pass
+
+### Should Pass (P1)
+- Section 3 multi-agent scenarios MA1-MA5 pass
+- Stealth passes `bot.sannysoft.com` basic checks
+- Session persistence works (SP1, SP2)
+
+### Nice to Have (P2)
+- Coverage > 30%
+- K3-K9 addressed or documented
+- Performance benchmarks baselined
