@@ -905,3 +905,115 @@ func (b *Bridge) handleSetCookies(w http.ResponseWriter, r *http.Request) {
 		"total":  len(req.Cookies),
 	})
 }
+
+// ── GET /stealth/status ────────────────────────────────────
+
+func (b *Bridge) handleStealthStatus(w http.ResponseWriter, r *http.Request) {
+	// Check Chrome launch flags to determine stealth features
+	stealthFeatures := map[string]bool{
+		"automation_controlled": true,     // --disable-blink-features=AutomationControlled
+		"webdriver_hidden":      true,     // Stealth script removes navigator.webdriver
+		"chrome_headless_new":   headless, // Using new headless mode if headless
+		"user_agent_override":   false,    // TODO: implement UA rotation
+		"webgl_vendor_override": true,     // Stealth script spoofs WebGL
+		"plugins_spoofed":       true,     // Stealth script adds fake plugins
+		"languages_spoofed":     false,    // TODO: implement language rotation
+		"webrtc_leak_prevented": false,    // TODO: implement WebRTC blocking
+		"timezone_spoofed":      false,    // TODO: implement timezone spoofing
+		"canvas_noise":          false,    // TODO: implement canvas fingerprint noise
+		"audio_noise":           false,    // TODO: implement audio fingerprint noise
+		"font_spoofing":         false,    // TODO: implement font metrics spoofing
+		"hardware_concurrency":  false,    // TODO: implement CPU core spoofing
+		"device_memory":         false,    // TODO: implement memory spoofing
+	}
+
+	// Check which Chrome flags are active
+	chromeFlags := []string{
+		"--disable-blink-features=AutomationControlled",
+		"--disable-features=IsolateOrigins,site-per-process",
+		"--disable-site-isolation-trials",
+		"--disable-web-security",
+		"--disable-features=BlinkGenPropertyTrees",
+		"--disable-ipc-flooding-protection",
+		"--disable-renderer-backgrounding",
+		"--disable-backgrounding-occluded-windows",
+		"--disable-features=TranslateUI",
+		"--disable-features=Translate",
+	}
+
+	// Calculate stealth score (percentage of features enabled)
+	enabledCount := 0
+	for _, enabled := range stealthFeatures {
+		if enabled {
+			enabledCount++
+		}
+	}
+	stealthScore := (enabledCount * 100) / len(stealthFeatures)
+
+	// Determine stealth level
+	var level string
+	switch {
+	case stealthScore >= 80:
+		level = "high"
+	case stealthScore >= 50:
+		level = "medium"
+	case stealthScore >= 30:
+		level = "basic"
+	default:
+		level = "minimal"
+	}
+
+	// Get current user agent
+	var userAgent string
+	if len(b.tabs) > 0 {
+		// Get UA from any active tab
+		for _, tab := range b.tabs {
+			ctx, cancel := context.WithTimeout(tab.ctx, 1*time.Second)
+			_ = chromedp.Run(ctx, chromedp.Evaluate(`navigator.userAgent`, &userAgent))
+			cancel()
+			if userAgent != "" {
+				break
+			}
+		}
+	}
+
+	jsonResp(w, 200, map[string]any{
+		"level":           level,
+		"score":           stealthScore,
+		"features":        stealthFeatures,
+		"chrome_flags":    chromeFlags,
+		"headless_mode":   headless,
+		"user_agent":      userAgent,
+		"profile_path":    profileDir,
+		"recommendations": getStealthRecommendations(stealthFeatures),
+	})
+}
+
+func getStealthRecommendations(features map[string]bool) []string {
+	recommendations := []string{}
+
+	if !features["user_agent_override"] {
+		recommendations = append(recommendations, "Enable user agent rotation to avoid detection")
+	}
+	if !features["languages_spoofed"] {
+		recommendations = append(recommendations, "Randomize Accept-Language headers")
+	}
+	if !features["webrtc_leak_prevented"] {
+		recommendations = append(recommendations, "Block WebRTC to prevent IP leaks")
+	}
+	if !features["timezone_spoofed"] {
+		recommendations = append(recommendations, "Spoof timezone to match target locale")
+	}
+	if !features["canvas_noise"] {
+		recommendations = append(recommendations, "Add canvas fingerprint noise")
+	}
+	if !features["font_spoofing"] {
+		recommendations = append(recommendations, "Randomize font metrics")
+	}
+
+	if len(recommendations) == 0 {
+		recommendations = append(recommendations, "Stealth mode is well configured")
+	}
+
+	return recommendations
+}

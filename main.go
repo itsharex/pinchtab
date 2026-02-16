@@ -148,6 +148,7 @@ func main() {
 	mux.HandleFunc("POST /tab", bridge.handleTab)
 	mux.HandleFunc("GET /cookies", bridge.handleGetCookies)
 	mux.HandleFunc("POST /cookies", bridge.handleSetCookies)
+	mux.HandleFunc("GET /stealth/status", bridge.handleStealthStatus)
 
 	srv := &http.Server{Addr: ":" + port, Handler: loggingMiddleware(corsMiddleware(authMiddleware(mux)))}
 
