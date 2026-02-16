@@ -20,7 +20,9 @@ func TestHandleActions_EmptyArray(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	if resp["error"] != "actions array is empty" {
 		t.Errorf("expected empty array error, got %v", resp["error"])
 	}
@@ -78,7 +80,9 @@ func TestHandleSetCookies_EmptyURL(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	if resp["error"] != "url is required" {
 		t.Errorf("expected url required error, got %v", resp["error"])
 	}
@@ -114,7 +118,9 @@ func TestHandleStealthStatus_NoTabs(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 
 	// Should have stealth features even without tabs
 	features, ok := resp["features"].(map[string]interface{})
