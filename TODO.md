@@ -42,7 +42,25 @@ BridgeAPI interface, handler tests, nil guard, deprecated flag removal.
 - [ ] **DNS leak prevention** — Fix networking leaks when using proxies
 - [ ] **Stealth status endpoint** — `GET /stealth/status` to check current anti-detection configuration
 
-## P9: Quality of Life
+## P9: Multi-Agent Coordination
+**Current status**: Multiple agents can share one Pinchtab instance but may conflict on ref caches and navigation. Best practice: use separate tabs per agent (`newTab: true`) and always specify `tabId`.
+
+- [ ] **Tab locking mechanism** — Prevent conflicts when multiple agents access same Pinchtab instance
+  - `POST /tab/lock {"tabId": "tab1", "lockId": "agent-uuid", "timeoutMs": 30000}`
+  - `POST /tab/unlock {"tabId": "tab1", "lockId": "agent-uuid"}`
+  - All operations require lockId when tab is locked
+- [ ] **Agent sessions (optional)** — Isolated browser contexts per agent for complex workflows
+  - `POST /session/create {"agentId": "agent1", "profile": "isolated"}` 
+  - `GET /session/list` — show active agent sessions
+  - `DELETE /session/{sessionId}` — cleanup agent session
+- [ ] **Ref cache versioning** — Prevent stale ref conflicts between agents taking overlapping snapshots
+- [ ] **Tab ownership tracking** — Show which agent/session owns which tabs in `/tabs` response
+- [ ] **Concurrent action queuing** — Queue conflicting actions on same tab instead of failing
+- [ ] **Agent-aware cleanup** — Clean up tabs/caches when agent sessions expire
+
+**Implementation priority**: Start with tab locking (solves 80% of conflicts with minimal complexity), then add optional sessions for advanced use cases.
+
+## P10: Quality of Life  
 - [ ] **Built-in ad blocking** — Integrate basic ad/tracker blocking for cleaner automation (less noise in snapshots)
 - [ ] **CSS animation disabling** — Skip animations for faster page loads and more consistent snapshots
 - [ ] **Debloated Chrome launch** — Strip unnecessary Chrome features for lower memory usage and faster startup
@@ -64,10 +82,12 @@ Until then, flat structure is correct. Don't premature-abstract.
 ## Not Doing
 - Plugin system
 - Proxy rotation (IP-level)
-- Session isolation / multi-tenant
+- Multi-tenant SaaS (different from multi-agent coordination)
 - Selenium compatibility
 - React UI
 - Cloud anything
 - MCP protocol (HTTP is the interface)
 - Machine learning / AI integration
 - External fingerprint services
+- Distributed browser clusters
+- Complex workflow orchestration (agents should handle their own logic)
