@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"gopkg.in/yaml.v3"
 )
 
 // ── GET /snapshot ──────────────────────────────────────────
@@ -91,13 +92,42 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		var filename string
 		var content []byte
 
-		if format == "text" {
+		switch format {
+		case "text":
 			filename = fmt.Sprintf("snapshot-%s.txt", timestamp)
 			textContent := fmt.Sprintf("# %s\n# %s\n# %d nodes\n# %s\n\n%s",
 				title, url, len(flat), time.Now().Format(time.RFC3339),
 				formatSnapshotText(flat))
 			content = []byte(textContent)
-		} else {
+		case "yaml":
+			filename = fmt.Sprintf("snapshot-%s.yaml", timestamp)
+			data := map[string]any{
+				"url":       url,
+				"title":     title,
+				"timestamp": time.Now().Format(time.RFC3339),
+				"nodes":     flat,
+				"count":     len(flat),
+			}
+			if doDiff && prevNodes != nil {
+				added, changed, removed := diffSnapshot(prevNodes, flat)
+				data["diff"] = true
+				data["added"] = added
+				data["changed"] = changed
+				data["removed"] = removed
+				data["counts"] = map[string]int{
+					"added":   len(added),
+					"changed": len(changed),
+					"removed": len(removed),
+					"total":   len(flat),
+				}
+			}
+			var err error
+			content, err = yaml.Marshal(data)
+			if err != nil {
+				jsonErr(w, 500, fmt.Errorf("marshal yaml: %w", err))
+				return
+			}
+		default:
 			filename = fmt.Sprintf("snapshot-%s.json", timestamp)
 			data := map[string]any{
 				"url":       url,
@@ -163,18 +193,33 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if format == "text" {
+	switch format {
+	case "text":
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 		_, _ = fmt.Fprintf(w, "# %s\n# %s\n# %d nodes\n\n", title, url, len(flat))
 		_, _ = w.Write([]byte(formatSnapshotText(flat)))
-		return
+	case "yaml":
+		data := map[string]any{
+			"url":   url,
+			"title": title,
+			"nodes": flat,
+			"count": len(flat),
+		}
+		yamlContent, err := yaml.Marshal(data)
+		if err != nil {
+			jsonErr(w, 500, fmt.Errorf("marshal yaml: %w", err))
+			return
+		}
+		w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+		w.WriteHeader(200)
+		_, _ = w.Write(yamlContent)
+	default:
+		jsonResp(w, 200, map[string]any{
+			"url":   url,
+			"title": title,
+			"nodes": flat,
+			"count": len(flat),
+		})
 	}
-
-	jsonResp(w, 200, map[string]any{
-		"url":   url,
-		"title": title,
-		"nodes": flat,
-		"count": len(flat),
-	})
 }
