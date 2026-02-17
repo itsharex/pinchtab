@@ -157,7 +157,8 @@ func TestHandleFingerprintRotate_NoTab(t *testing.T) {
 
 func TestActionRegistry_HumanActions(t *testing.T) {
 	b := &Bridge{}
-	registry := b.actionRegistry()
+	b.initActionRegistry()
+	registry := b.actions
 
 	// Check new human actions exist
 	if _, ok := registry[actionHumanClick]; !ok {

@@ -34,8 +34,10 @@ type actionRequest struct {
 // ActionFunc handles a single action kind.
 type ActionFunc func(ctx context.Context, req actionRequest) (map[string]any, error)
 
-func (b *Bridge) actionRegistry() map[string]ActionFunc {
-	return map[string]ActionFunc{
+// initActionRegistry builds the action registry once. Call from main() after
+// Bridge is initialised; the result is stored in b.actions.
+func (b *Bridge) initActionRegistry() {
+	b.actions = map[string]ActionFunc{
 		actionClick: func(ctx context.Context, req actionRequest) (map[string]any, error) {
 			var err error
 			if req.Selector != "" {
@@ -223,7 +225,7 @@ func (b *Bridge) handleAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	registry := b.actionRegistry()
+	registry := b.actions
 	if req.Kind == "" {
 		kinds := make([]string, 0, len(registry))
 		for k := range registry {
@@ -278,7 +280,7 @@ func (b *Bridge) handleActions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Actions) == 0 {
-		jsonResp(w, 400, map[string]string{"error": "actions array is empty"})
+		jsonErr(w, 400, fmt.Errorf("actions array is empty"))
 		return
 	}
 
@@ -289,7 +291,7 @@ func (b *Bridge) handleActions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]actionResult, 0, len(req.Actions))
-	registry := b.actionRegistry()
+	registry := b.actions
 
 	for i, action := range req.Actions {
 		if action.TabID == "" {

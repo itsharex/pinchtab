@@ -222,6 +222,7 @@ func main() {
 	bridge.browserCtx = browserCtx
 	bridge.tabs = make(map[string]*TabEntry)
 	bridge.snapshots = make(map[string]*refCache)
+	bridge.initActionRegistry()
 	bridge.locks = newLockManager()
 
 	// Register the initial tab

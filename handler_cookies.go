@@ -107,12 +107,12 @@ func (b *Bridge) handleSetCookies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.URL == "" {
-		jsonResp(w, 400, map[string]string{"error": "url is required"})
+		jsonErr(w, 400, fmt.Errorf("url is required"))
 		return
 	}
 
 	if len(req.Cookies) == 0 {
-		jsonResp(w, 400, map[string]string{"error": "cookies array is empty"})
+		jsonErr(w, 400, fmt.Errorf("cookies array is empty"))
 		return
 	}
 

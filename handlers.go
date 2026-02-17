@@ -199,7 +199,7 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.URL == "" {
-		jsonResp(w, 400, map[string]string{"error": "url required"})
+		jsonErr(w, 400, fmt.Errorf("url required"))
 		return
 	}
 
@@ -302,7 +302,7 @@ func (b *Bridge) handleEvaluate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Expression == "" {
-		jsonResp(w, 400, map[string]string{"error": "expression required"})
+		jsonErr(w, 400, fmt.Errorf("expression required"))
 		return
 	}
 
@@ -352,7 +352,7 @@ func (b *Bridge) handleTab(w http.ResponseWriter, r *http.Request) {
 
 	case tabActionClose:
 		if req.TabID == "" {
-			jsonResp(w, 400, map[string]string{"error": "tabId required"})
+			jsonErr(w, 400, fmt.Errorf("tabId required"))
 			return
 		}
 
@@ -363,7 +363,7 @@ func (b *Bridge) handleTab(w http.ResponseWriter, r *http.Request) {
 		jsonResp(w, 200, map[string]any{"closed": true})
 
 	default:
-		jsonResp(w, 400, map[string]string{"error": "action must be 'new' or 'close'"})
+		jsonErr(w, 400, fmt.Errorf("action must be 'new' or 'close'"))
 	}
 }
 
@@ -380,7 +380,7 @@ func (b *Bridge) handleTabLock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.TabID == "" || req.Owner == "" {
-		jsonResp(w, 400, map[string]string{"error": "tabId and owner required"})
+		jsonErr(w, 400, fmt.Errorf("tabId and owner required"))
 		return
 	}
 
@@ -390,7 +390,7 @@ func (b *Bridge) handleTabLock(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := b.locks.Lock(req.TabID, req.Owner, timeout); err != nil {
-		jsonResp(w, 409, map[string]string{"error": err.Error()})
+		jsonErr(w, 409, err)
 		return
 	}
 
@@ -414,12 +414,12 @@ func (b *Bridge) handleTabUnlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.TabID == "" || req.Owner == "" {
-		jsonResp(w, 400, map[string]string{"error": "tabId and owner required"})
+		jsonErr(w, 400, fmt.Errorf("tabId and owner required"))
 		return
 	}
 
 	if err := b.locks.Unlock(req.TabID, req.Owner); err != nil {
-		jsonResp(w, 409, map[string]string{"error": err.Error()})
+		jsonErr(w, 409, err)
 		return
 	}
 

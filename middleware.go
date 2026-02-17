@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -38,7 +39,7 @@ func authMiddleware(next http.Handler) http.Handler {
 		if token != "" {
 			auth := r.Header.Get("Authorization")
 			if auth != "Bearer "+token {
-				jsonResp(w, 401, map[string]string{"error": "unauthorized"})
+				jsonErr(w, 401, fmt.Errorf("unauthorized"))
 				return
 			}
 		}

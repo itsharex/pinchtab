@@ -29,9 +29,13 @@ func navigatePage(ctx context.Context, url string) error {
 			}
 			return nil
 		}),
-		// Poll document.readyState until interactive/complete or timeout
+		// Poll document.readyState until interactive/complete or context deadline.
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			deadline := time.Now().Add(10 * time.Second)
+			// Use context deadline if set, otherwise fall back to 10s.
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				deadline = time.Now().Add(10 * time.Second)
+			}
 			for time.Now().Before(deadline) {
 				var readyState string
 				evalP := map[string]any{

@@ -34,7 +34,8 @@ type Bridge struct {
 	browserCtx    context.Context
 	tabs          map[string]*TabEntry
 	snapshots     map[string]*refCache
-	stealthScript string // injected on every new tab
+	stealthScript string                // injected on every new tab
+	actions       map[string]ActionFunc // cached action registry (built once)
 	locks         *lockManager
 	mu            sync.RWMutex
 }
@@ -45,12 +46,14 @@ func (b *Bridge) injectStealth(ctx context.Context) {
 	if b.stealthScript == "" {
 		return
 	}
-	_ = chromedp.Run(ctx,
+	if err := chromedp.Run(ctx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, err := page.AddScriptToEvaluateOnNewDocument(b.stealthScript).Do(ctx)
 			return err
 		}),
-	)
+	); err != nil {
+		slog.Warn("stealth injection failed", "err", err)
+	}
 }
 
 // TabContext returns the chromedp context for a tab and the resolved tabID.
