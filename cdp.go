@@ -168,23 +168,38 @@ func scrollByNodeID(ctx context.Context, backendNodeID int64) error {
 	return withElement(ctx, backendNodeID, "function() { this.scrollIntoViewIfNeeded(); }")
 }
 
-// setImageBlocking uses Network.setBlockedURLs to block common image URLs.
-// Pass true to block, false to clear the blocklist.
-func setImageBlocking(ctx context.Context, block bool) error {
+// URL patterns for blocking resources via Network.setBlockedURLs.
+var imageBlockPatterns = []string{
+	// Common image extensions
+	"*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.ico",
+	"*.bmp", "*.tiff", "*.avif", "*.jfif",
+	// Common CDN image paths
+	"*/images/*", "*/img/*", "*/photos/*", "*/thumbnails/*",
+	"*imagedelivery.net*", "*images.unsplash.com*", "*pbs.twimg.com*",
+}
+
+var mediaBlockPatterns = append(imageBlockPatterns,
+	// Fonts
+	"*.woff", "*.woff2", "*.ttf", "*.otf", "*.eot",
+	// Video/Audio
+	"*.mp4", "*.webm", "*.ogg", "*.mp3", "*.wav", "*.m3u8",
+	// CSS (aggressive)
+	"*.css",
+)
+
+// setResourceBlocking uses Network.setBlockedURLs to block resources by URL pattern.
+// Pass nil to clear the blocklist.
+func setResourceBlocking(ctx context.Context, patterns []string) error {
 	return chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		// Enable Network domain first (idempotent).
+		// Enable Network domain (idempotent).
 		if err := chromedp.FromContext(ctx).Target.Execute(ctx, "Network.enable", nil, nil); err != nil {
 			return fmt.Errorf("Network.enable: %w", err)
 		}
 
-		var urls []string
-		if block {
-			urls = []string{
-				"*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.ico",
-				"*.bmp", "*.tiff", "*.avif",
-			}
+		if patterns == nil {
+			patterns = []string{}
 		}
-		p := map[string]any{"urls": urls}
+		p := map[string]any{"urls": patterns}
 		if err := chromedp.FromContext(ctx).Target.Execute(ctx, "Network.setBlockedURLs", p, nil); err != nil {
 			return fmt.Errorf("Network.setBlockedURLs: %w", err)
 		}

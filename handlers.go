@@ -182,6 +182,7 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		WaitTitle   float64 `json:"waitTitle"`   // seconds to wait for title (default 2, max 30)
 		Timeout     float64 `json:"timeout"`     // per-request navigate timeout in seconds (default: BRIDGE_NAV_TIMEOUT)
 		BlockImages *bool   `json:"blockImages"` // per-request override; nil = use global BRIDGE_BLOCK_IMAGES
+		BlockMedia  *bool   `json:"blockMedia"`  // block images + fonts + CSS + video/audio
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodySize)).Decode(&req); err != nil {
 		jsonErr(w, 400, fmt.Errorf("decode: %w", err))
@@ -210,10 +211,18 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		navTimeout = time.Duration(req.Timeout * float64(time.Second))
 	}
 
-	// Resolve image blocking: per-request overrides global.
-	shouldBlockImages := blockImages
-	if req.BlockImages != nil {
-		shouldBlockImages = *req.BlockImages
+	// Resolve resource blocking: per-request overrides global.
+	var blockPatterns []string
+	if req.BlockMedia != nil && *req.BlockMedia {
+		blockPatterns = mediaBlockPatterns
+	} else if req.BlockImages != nil && *req.BlockImages {
+		blockPatterns = imageBlockPatterns
+	} else if req.BlockImages != nil && !*req.BlockImages {
+		blockPatterns = nil // explicitly disabled
+	} else if blockMedia {
+		blockPatterns = mediaBlockPatterns // global BRIDGE_BLOCK_MEDIA
+	} else if blockImages {
+		blockPatterns = imageBlockPatterns // global BRIDGE_BLOCK_IMAGES
 	}
 
 	if req.NewTab {
@@ -227,8 +236,8 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		defer tCancel()
 		go cancelOnClientDone(r.Context(), tCancel)
 
-		if shouldBlockImages {
-			_ = setImageBlocking(tCtx, true)
+		if blockPatterns != nil {
+			_ = setResourceBlocking(tCtx, blockPatterns)
 		}
 
 		var url, title string
@@ -249,8 +258,13 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 	defer tCancel()
 	go cancelOnClientDone(r.Context(), tCancel)
 
-	// Apply image blocking before navigation.
-	_ = setImageBlocking(tCtx, shouldBlockImages)
+	// Apply resource blocking before navigation.
+	if blockPatterns != nil {
+		_ = setResourceBlocking(tCtx, blockPatterns)
+	} else if blockImages {
+		// Clear any previous blocking if per-request disabled it.
+		_ = setResourceBlocking(tCtx, nil)
+	}
 
 	if err := navigatePage(tCtx, req.URL); err != nil {
 		jsonErr(w, 500, fmt.Errorf("navigate: %w", err))

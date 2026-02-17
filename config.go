@@ -56,6 +56,7 @@ var (
 	chromeVersion   = envOr("BRIDGE_CHROME_VERSION", "133.0.6943.98")
 	timezone        = os.Getenv("BRIDGE_TIMEZONE") // e.g. "America/New_York"
 	blockImages     = os.Getenv("BRIDGE_BLOCK_IMAGES") == "true"
+	blockMedia      = os.Getenv("BRIDGE_BLOCK_MEDIA") == "true" // superset: images + fonts + CSS + video
 	actionTimeout   = 15 * time.Second
 	navigateTimeout = 30 * time.Second
 	shutdownTimeout = 10 * time.Second
