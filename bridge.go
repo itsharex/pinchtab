@@ -143,6 +143,9 @@ func (b *Bridge) DeleteRefCache(tabID string) {
 
 // CreateTab opens a new tab, navigates to url, and returns its ID and context.
 func (b *Bridge) CreateTab(url string) (string, context.Context, context.CancelFunc, error) {
+	if b.browserCtx == nil {
+		return "", nil, nil, fmt.Errorf("no browser context available")
+	}
 	ctx, cancel := chromedp.NewContext(b.browserCtx)
 
 	navURL := "about:blank"

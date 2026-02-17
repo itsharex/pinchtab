@@ -209,6 +209,60 @@ func TestHandleScreenshot_NoTab(t *testing.T) {
 	}
 }
 
+// ── Cookie error paths ────────────────────────────────────
+
+func TestHandleSetCookies_BadJSON(t *testing.T) {
+	b := newTestBridge()
+	req := httptest.NewRequest("POST", "/cookies", strings.NewReader("{broken"))
+	w := httptest.NewRecorder()
+	b.handleSetCookies(w, req)
+
+	if w.Code != 400 {
+		t.Errorf("expected 400 for bad JSON, got %d", w.Code)
+	}
+}
+
+func TestHandleSetCookies_MissingURL(t *testing.T) {
+	b := newTestBridge()
+	body := `{"cookies": [{"name": "test", "value": "123"}]}`
+	req := httptest.NewRequest("POST", "/cookies", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	b.handleSetCookies(w, req)
+
+	if w.Code != 400 {
+		t.Errorf("expected 400 for missing URL, got %d", w.Code)
+	}
+}
+
+// ── Navigate edge cases ──────────────────────────────────
+
+func TestHandleNavigate_WaitTitleClamp(t *testing.T) {
+	// waitTitle > 30 should be clamped; this tests the parse path
+	b := newTestBridge()
+	body := `{"url": "https://example.com", "waitTitle": 999}`
+	req := httptest.NewRequest("POST", "/navigate", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	b.handleNavigate(w, req)
+
+	// No tabs → 404, but the parse/clamp code runs without panic
+	if w.Code != 404 {
+		t.Errorf("expected 404 (no tab), got %d", w.Code)
+	}
+}
+
+func TestHandleNavigate_NewTabNoChrome(t *testing.T) {
+	b := newTestBridge()
+	body := `{"url": "https://example.com", "newTab": true}`
+	req := httptest.NewRequest("POST", "/navigate", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	b.handleNavigate(w, req)
+
+	// newTab with no browser context → should return 500, not panic
+	if w.Code != 500 {
+		t.Errorf("expected 500 (no browser), got %d", w.Code)
+	}
+}
+
 // ── RefCache methods ──────────────────────────────────────
 
 func TestGetSetDeleteRefCache(t *testing.T) {
