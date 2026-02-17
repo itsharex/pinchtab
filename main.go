@@ -60,7 +60,8 @@ func main() {
 
 			// Advanced stealth: hide automation indicators
 			chromedp.Flag("exclude-switches", "enable-automation"),
-			chromedp.Flag("disable-blink-features", "AutomationControlled"),
+			// Note: --disable-blink-features=AutomationControlled removed (deprecated Chrome 144+).
+			// Stealth is handled via CDP navigator.webdriver override instead.
 			chromedp.Flag("disable-infobars", true),
 			chromedp.Flag("disable-dev-shm-usage", true),
 			chromedp.Flag("disable-renderer-backgrounding", true),

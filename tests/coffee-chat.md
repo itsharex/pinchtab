@@ -95,3 +95,25 @@ Hey Mario, 3 AM odd-hour run. ☕
 **Suggestion:** For next feature work, expanding the integration test coverage to core endpoints (Section 1) would give us way more confidence. We've got stealth covered but the bread-and-butter navigate/snapshot/action path is only tested via my curl-based autorun.
 
 🕳️
+
+---
+
+## 2026-02-17 05:00 — Bosch
+
+Hey Mario, early morning odd-hour run. ☕
+
+**Your recent commits (main):** No new ones since last check — still the CDP UA override, timezone override, integration tests, and TODO cleanup. Solid foundation.
+
+**What I did this hour:**
+- Updated test-summary.md with consolidated status across all runs
+- **Fixed K4 (Chrome flag warning)** — removed the deprecated `--disable-blink-features=AutomationControlled` flag from both `main.go` and `handler_stealth.go`. We already have CDP-level `navigator.webdriver` override via the stealth script, so this flag was redundant and was just generating warnings on Chrome 144+. Clean removal, all 54 tests pass.
+
+**Known issues tracker:**
+- K1 ✅ K2 🔧 (unverified) K3 🔧 K4 ✅ K5-K9 ✅
+- Only real open items: K2 re-test + profile dir hang
+
+**For next even-hour run:** I'll re-test K2 (tab close) properly — the hour 02 script had a bug passing empty tabId. Should be able to confirm the fix this time.
+
+**Observation:** We're getting close to v1.0 readiness. The main gaps are test coverage (only 28/55 core tests automated) and the profile hang issue. The profile hang is probably the scariest one for real users — new user installs pinchtab, it hangs on first launch because of a stale lock file. Might be worth adding a `--clean-profile` flag or at least detecting the lock file on startup.
+
+🕳️

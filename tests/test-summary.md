@@ -1,6 +1,6 @@
 # Pinchtab Test Summary
 
-**Last updated:** 2026-02-17 03:00 UTC
+**Last updated:** 2026-02-17 05:00 UTC
 **Runs analyzed:** bosch-test-00.md, bosch-test-02.md
 
 ---
@@ -18,7 +18,8 @@
 | Error handling | ✅ Pass | Bad JSON, missing params, unknown kinds, bad refs — all return clean errors |
 | Active tab tracking (K1) | ✅ Fixed | Confirmed in hour 00 run |
 | Tab close (K2) | 🔧 Partial | Hour 01 fix applied. Hour 02 test script had bug (empty tabId). Needs re-test with valid tabId |
-| SPA title (K3) | 🔧 Improved | Added `waitTitle` param to navigate (hour 03) — agents can opt into longer waits for SPAs |
+| SPA title (K3) | 🔧 Improved | Added `waitTitle` param to navigate (hour 03) — agents can opt into longer waits |
+| Chrome flag (K4) | ✅ Fixed | Removed deprecated `--disable-blink-features=AutomationControlled` flag (hour 05). CDP stealth handles this. |
 
 ## Performance Metrics
 
@@ -76,11 +77,11 @@ Key observations:
 | # | Issue | Severity | Status | Notes |
 |---|-------|----------|--------|-------|
 | K1 | Active tab tracking | 🔴 P0 | ✅ FIXED | Confirmed working hour 00 |
-| K2 | Tab close hangs | 🟡 P1 | 🔧 FIX APPLIED | Hour 01 fix (close via existing ctx). Needs re-test |
-| K3 | x.com title empty | 🟢 P2 | 🔧 IMPROVED | Added `waitTitle` param (hour 03) — agents can wait up to 30s |
-| K4 | Chrome flag warning | 🟢 P2 | OPEN | Cosmetic, Chrome 144+ deprecation |
+| K2 | Tab close hangs | 🟡 P1 | 🔧 FIX APPLIED | Hour 01 fix. Needs re-test with valid tabId |
+| K3 | x.com title empty | 🟢 P2 | 🔧 IMPROVED | Added `waitTitle` param (hour 03) |
+| K4 | Chrome flag warning | 🟢 P2 | ✅ FIXED | Removed deprecated flag (hour 05), CDP stealth handles it |
 | K5-K9 | Stealth issues | — | ✅ ALL FIXED | Mario's fixes (CDP overrides) |
-| NEW | Profile dir hang | 🟡 P1 | OPEN | Default profile (~/.pinchtab/chrome-profile) can hang Chrome launch. Fresh profiles work. Possible lock file or corruption |
+| NEW | Profile dir hang | 🟡 P1 | OPEN | Default profile can hang Chrome launch. Fresh profiles work. |
 
 ## Release Readiness (v1.0)
 
