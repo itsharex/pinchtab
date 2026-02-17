@@ -20,10 +20,34 @@ metadata:
           description: "Bearer auth token for Pinchtab API"
         - name: BRIDGE_PORT
           optional: true
-          description: "HTTP port (default: 18800)"
+          description: "HTTP port (default: 9867)"
         - name: BRIDGE_HEADLESS
           optional: true
           description: "Run Chrome headless (true/false)"
+        - name: BRIDGE_PROFILE
+          optional: true
+          description: "Chrome profile directory (default: ~/.pinchtab/chrome-profile)"
+        - name: BRIDGE_STATE_DIR
+          optional: true
+          description: "State/session storage directory (default: ~/.pinchtab)"
+        - name: BRIDGE_NO_RESTORE
+          optional: true
+          description: "Skip restoring tabs from previous session (true/false)"
+        - name: BRIDGE_CHROME_VERSION
+          optional: true
+          description: "Chrome UA version string (default: 133.0.6943.98)"
+        - name: BRIDGE_CONFIG
+          optional: true
+          description: "Path to config JSON file (default: ~/.pinchtab/config.json)"
+        - name: BRIDGE_TIMEOUT
+          optional: true
+          description: "Action timeout in seconds (default: 15)"
+        - name: BRIDGE_NAV_TIMEOUT
+          optional: true
+          description: "Navigation timeout in seconds (default: 30)"
+        - name: CDP_URL
+          optional: true
+          description: "Connect to existing Chrome DevTools instead of launching"
 ---
 
 # Pinchtab
@@ -85,6 +109,12 @@ curl "http://localhost:9867/snapshot?diff=true"
 
 # Text format — indented tree, ~40-60% fewer tokens than JSON
 curl "http://localhost:9867/snapshot?format=text"
+
+# YAML format
+curl "http://localhost:9867/snapshot?format=yaml"
+
+# Write to file
+curl "http://localhost:9867/snapshot?output=file&path=/tmp/snapshot.json"
 ```
 
 Returns flat JSON array of nodes with `ref`, `role`, `name`, `depth`, `value`, `nodeId`.
@@ -197,6 +227,40 @@ curl -X POST http://localhost:9867/tab \
 
 Multi-tab: pass `?tabId=TARGET_ID` to snapshot/screenshot/text, or `"tabId"` in POST body.
 
+### Batch actions
+
+```bash
+# Execute multiple actions in sequence
+curl -X POST http://localhost:9867/actions \
+  -H 'Content-Type: application/json' \
+  -d '[{"kind":"click","ref":"e3"},{"kind":"type","ref":"e3","text":"hello"},{"kind":"press","key":"Enter"}]'
+```
+
+### Cookies
+
+```bash
+# Get cookies for current page
+curl http://localhost:9867/cookies
+
+# Set cookies
+curl -X POST http://localhost:9867/cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com","cookies":[{"name":"session","value":"abc123"}]}'
+```
+
+### Stealth
+
+```bash
+# Check stealth status and score
+curl http://localhost:9867/stealth/status
+
+# Rotate browser fingerprint
+curl -X POST http://localhost:9867/fingerprint/rotate \
+  -H 'Content-Type: application/json' \
+  -d '{"os":"windows"}'
+# os: "windows", "mac", or omit for random
+```
+
 ### Health check
 
 ```bash
@@ -226,12 +290,18 @@ curl http://localhost:9867/health
 | `BRIDGE_PROFILE` | `~/.pinchtab/chrome-profile` | Chrome profile dir |
 | `BRIDGE_STATE_DIR` | `~/.pinchtab` | State/session storage |
 | `BRIDGE_NO_RESTORE` | `false` | Skip tab restore on startup |
+| `BRIDGE_CHROME_VERSION` | `133.0.6943.98` | Chrome UA version string |
+| `BRIDGE_CONFIG` | `~/.pinchtab/config.json` | Path to config JSON file |
+| `BRIDGE_TIMEOUT` | `15` | Action timeout (seconds) |
+| `BRIDGE_NAV_TIMEOUT` | `30` | Navigation timeout (seconds) |
 | `CDP_URL` | (none) | Connect to existing Chrome DevTools |
 
 ## Tips
 
+- **Always pass `tabId` explicitly** when working with multiple tabs — active tab tracking can be unreliable
 - Refs are stable between snapshot and actions — no need to re-snapshot before clicking
 - After navigation or major page changes, take a new snapshot to get fresh refs
 - Use `filter=interactive` by default, fall back to full snapshot when needed
 - Pinchtab persists sessions — tabs survive restarts (disable with `BRIDGE_NO_RESTORE=true`)
 - Chrome profile is persistent — cookies/logins carry over between runs
+- Use `BRIDGE_CHROME_VERSION` to match your installed Chrome version for stealth consistency
