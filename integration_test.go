@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
@@ -298,6 +299,40 @@ func TestFingerprintRotation(t *testing.T) {
 		t.Skip("fingerprint rotation requires CDP-level overrides (8F-7) — skipping")
 	} else {
 		t.Fatalf("unexpected status %d: %s", resp.StatusCode, respBody)
+	}
+}
+
+// TestCDPTimezoneOverride verifies that Emulation.setTimezoneOverride works at CDP level.
+func TestCDPTimezoneOverride(t *testing.T) {
+	b, cleanup := testBridge(t)
+	defer cleanup()
+
+	// Apply CDP timezone override
+	ctx, _, _ := b.TabContext("")
+	tCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := chromedp.Run(tCtx,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			return emulation.SetTimezoneOverride("Pacific/Auckland").Do(ctx)
+		}),
+	); err != nil {
+		t.Fatalf("setTimezoneOverride: %v", err)
+	}
+
+	navigateAndWait(t, b, "data:text/html,<h1>tz</h1>")
+
+	ctx2, _, _ := b.TabContext("")
+	tCtx2, cancel2 := context.WithTimeout(ctx2, 5*time.Second)
+	defer cancel2()
+
+	var tz string
+	if err := chromedp.Run(tCtx2, chromedp.Evaluate(`Intl.DateTimeFormat().resolvedOptions().timeZone`, &tz)); err != nil {
+		t.Fatalf("evaluate: %v", err)
+	}
+
+	if tz != "Pacific/Auckland" {
+		t.Errorf("timezone = %q, want Pacific/Auckland", tz)
 	}
 }
 

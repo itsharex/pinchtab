@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
@@ -116,6 +117,19 @@ func main() {
 	); err != nil {
 		slog.Error("cannot start Chrome", "err", err)
 		os.Exit(1)
+	}
+
+	// CDP-level timezone override (more reliable than JS-only approach)
+	if timezone != "" {
+		if err := chromedp.Run(browserCtx,
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				return emulation.SetTimezoneOverride(timezone).Do(ctx)
+			}),
+		); err != nil {
+			slog.Warn("timezone override failed", "tz", timezone, "err", err)
+		} else {
+			slog.Info("timezone override", "tz", timezone)
+		}
 	}
 
 	bridge.browserCtx = browserCtx

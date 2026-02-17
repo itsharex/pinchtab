@@ -53,6 +53,7 @@ var (
 	noRestore       = os.Getenv("BRIDGE_NO_RESTORE") == "true"
 	profileDir      = envOr("BRIDGE_PROFILE", filepath.Join(homeDir(), ".pinchtab", "chrome-profile"))
 	chromeVersion   = envOr("BRIDGE_CHROME_VERSION", "133.0.6943.98")
+	timezone        = os.Getenv("BRIDGE_TIMEZONE") // e.g. "America/New_York"
 	actionTimeout   = 15 * time.Second
 	navigateTimeout = 30 * time.Second
 	shutdownTimeout = 10 * time.Second
