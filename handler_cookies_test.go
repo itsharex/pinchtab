@@ -46,7 +46,9 @@ func TestHandleGetCookies_NameFilter(t *testing.T) {
 		t.Errorf("expected 404, got %d", w.Code)
 	}
 	var resp map[string]any
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if resp["error"] == nil {
 		t.Error("expected error in response")
 	}

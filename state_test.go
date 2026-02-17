@@ -136,8 +136,8 @@ func TestWasUncleanExit_Crashed(t *testing.T) {
 	defer func() { profileDir = origProfile }()
 
 	defaultDir := filepath.Join(tmp, "Default")
-	os.MkdirAll(defaultDir, 0755)
-	os.WriteFile(filepath.Join(defaultDir, "Preferences"),
+	_ = os.MkdirAll(defaultDir, 0755)
+	_ = os.WriteFile(filepath.Join(defaultDir, "Preferences"),
 		[]byte(`{"profile":{"exit_type":"Crashed","exited_cleanly":false}}`), 0644)
 
 	if !wasUncleanExit() {
@@ -152,8 +152,8 @@ func TestWasUncleanExit_Normal(t *testing.T) {
 	defer func() { profileDir = origProfile }()
 
 	defaultDir := filepath.Join(tmp, "Default")
-	os.MkdirAll(defaultDir, 0755)
-	os.WriteFile(filepath.Join(defaultDir, "Preferences"),
+	_ = os.MkdirAll(defaultDir, 0755)
+	_ = os.WriteFile(filepath.Join(defaultDir, "Preferences"),
 		[]byte(`{"profile":{"exit_type":"Normal","exited_cleanly":true}}`), 0644)
 
 	if wasUncleanExit() {
@@ -179,8 +179,8 @@ func TestClearChromeSessions(t *testing.T) {
 	defer func() { profileDir = origProfile }()
 
 	sessionsDir := filepath.Join(tmp, "Default", "Sessions")
-	os.MkdirAll(sessionsDir, 0755)
-	os.WriteFile(filepath.Join(sessionsDir, "Session_1"), []byte("data"), 0644)
+	_ = os.MkdirAll(sessionsDir, 0755)
+	_ = os.WriteFile(filepath.Join(sessionsDir, "Session_1"), []byte("data"), 0644)
 
 	clearChromeSessions()
 
