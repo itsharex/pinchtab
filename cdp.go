@@ -60,10 +60,13 @@ func navigatePage(ctx context.Context, url string) error {
 	)
 }
 
-// waitForTitle polls document.title for up to 2 seconds, returning the first
-// non-empty value or "" on timeout.
-func waitForTitle(ctx context.Context) string {
-	deadline := time.Now().Add(2 * time.Second)
+// waitForTitle polls document.title for up to the given duration, returning
+// the first non-empty value or "" on timeout. Pass 0 for the default (2s).
+func waitForTitle(ctx context.Context, wait time.Duration) string {
+	if wait <= 0 {
+		wait = 2 * time.Second
+	}
+	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) {
 		var title string
 		if err := chromedp.Run(ctx, chromedp.Title(&title)); err == nil && title != "" {
@@ -163,6 +166,45 @@ func selectByNodeID(ctx context.Context, backendNodeID int64, value string) erro
 // scrollByNodeID scrolls an element into view.
 func scrollByNodeID(ctx context.Context, backendNodeID int64) error {
 	return withElement(ctx, backendNodeID, "function() { this.scrollIntoViewIfNeeded(); }")
+}
+
+// URL patterns for blocking resources via Network.setBlockedURLs.
+var imageBlockPatterns = []string{
+	// Common image extensions
+	"*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.ico",
+	"*.bmp", "*.tiff", "*.avif", "*.jfif",
+	// Common CDN image paths
+	"*/images/*", "*/img/*", "*/photos/*", "*/thumbnails/*",
+	"*imagedelivery.net*", "*images.unsplash.com*", "*pbs.twimg.com*",
+}
+
+var mediaBlockPatterns = append(imageBlockPatterns,
+	// Fonts
+	"*.woff", "*.woff2", "*.ttf", "*.otf", "*.eot",
+	// Video/Audio
+	"*.mp4", "*.webm", "*.ogg", "*.mp3", "*.wav", "*.m3u8",
+	// CSS (aggressive)
+	"*.css",
+)
+
+// setResourceBlocking uses Network.setBlockedURLs to block resources by URL pattern.
+// Pass nil to clear the blocklist.
+func setResourceBlocking(ctx context.Context, patterns []string) error {
+	return chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		// Enable Network domain (idempotent).
+		if err := chromedp.FromContext(ctx).Target.Execute(ctx, "Network.enable", nil, nil); err != nil {
+			return fmt.Errorf("Network.enable: %w", err)
+		}
+
+		if patterns == nil {
+			patterns = []string{}
+		}
+		p := map[string]any{"urls": patterns}
+		if err := chromedp.FromContext(ctx).Target.Execute(ctx, "Network.setBlockedURLs", p, nil); err != nil {
+			return fmt.Errorf("Network.setBlockedURLs: %w", err)
+		}
+		return nil
+	}))
 }
 
 // resolveNodeToObject converts a backendNodeID to a JS remote object ID.

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -50,6 +51,15 @@ func main() {
 			slog.Error("cannot create profile dir", "err", err)
 			os.Exit(1)
 		}
+
+		// Remove stale Chrome lock files from unclean shutdowns.
+		for _, lockName := range []string{"SingletonLock", "SingletonSocket", "SingletonCookie"} {
+			lockPath := fmt.Sprintf("%s/%s", profileDir, lockName)
+			if err := os.Remove(lockPath); err == nil {
+				slog.Warn("removed stale lock", "file", lockName)
+			}
+		}
+
 		slog.Info("launching Chrome", "profile", profileDir, "headless", headless)
 
 		opts := []chromedp.ExecAllocatorOption{
@@ -60,7 +70,8 @@ func main() {
 
 			// Advanced stealth: hide automation indicators
 			chromedp.Flag("exclude-switches", "enable-automation"),
-			chromedp.Flag("disable-blink-features", "AutomationControlled"),
+			// Note: --disable-blink-features=AutomationControlled removed (deprecated Chrome 144+).
+			// Stealth is handled via CDP navigator.webdriver override instead.
 			chromedp.Flag("disable-infobars", true),
 			chromedp.Flag("disable-dev-shm-usage", true),
 			chromedp.Flag("disable-renderer-backgrounding", true),
@@ -101,6 +112,8 @@ func main() {
 		markCleanExit()
 		bridge.allocCtx, allocCancel = chromedp.NewExecAllocator(context.Background(), opts...)
 	}
+	// Safety net: defers ensure Chrome cleanup even if doShutdown doesn't fire.
+	// doShutdown also calls these (sync.Once ensures no double-close issue).
 	defer allocCancel()
 
 	browserCtx, browserCancel := chromedp.NewContext(bridge.allocCtx)
@@ -109,6 +122,7 @@ func main() {
 	// Inject stealth script with a session-stable seed (stays constant across page loads)
 	stealthSeed := rand.Intn(1000000000)
 	seededScript := fmt.Sprintf("var __pinchtab_seed = %d;\n", stealthSeed) + stealthScript
+	bridge.stealthScript = seededScript // store for new tab injection
 	if err := chromedp.Run(browserCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, err := page.AddScriptToEvaluateOnNewDocument(seededScript).Do(ctx)
@@ -170,20 +184,39 @@ func main() {
 
 	srv := &http.Server{Addr: ":" + port, Handler: loggingMiddleware(corsMiddleware(authMiddleware(mux)))}
 
-	// Graceful shutdown
+	// Shutdown orchestration — used by both signal handler and /shutdown endpoint.
+	shutdownOnce := &sync.Once{}
+	doShutdown := func() {
+		shutdownOnce.Do(func() {
+			slog.Info("shutting down, saving state...")
+			cleanupCancel()
+			bridge.SaveState()
+			markCleanExit()
+
+			// Shut down HTTP server first so no new requests come in.
+			shutdownCtx, shutdownDone := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer shutdownDone()
+			if err := srv.Shutdown(shutdownCtx); err != nil {
+				slog.Error("shutdown http", "err", err)
+			}
+
+			// Explicitly close Chrome by canceling the browser and allocator contexts.
+			// This sends CDP Browser.close and kills the Chrome process.
+			browserCancel()
+			allocCancel()
+			slog.Info("chrome closed")
+		})
+	}
+
+	// Wire up /shutdown endpoint (requires auth like all other endpoints).
+	mux.HandleFunc("POST /shutdown", bridge.handleShutdown(doShutdown))
+
+	// Signal handler.
 	go func() {
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
-		slog.Info("shutting down, saving state...")
-		cleanupCancel()
-		bridge.SaveState()
-		markCleanExit()
-		shutdownCtx, shutdownDone := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer shutdownDone()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			slog.Error("shutdown", "err", err)
-		}
+		doShutdown()
 	}()
 
 	slog.Info("🦀 PINCH! PINCH!", "port", port, "cdp", cdpURL)

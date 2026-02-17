@@ -94,7 +94,7 @@ func staticStealthFeatures() map[string]bool {
 
 func (b *Bridge) sendStealthResponse(w http.ResponseWriter, features map[string]bool, userAgent string) {
 	chromeFlags := []string{
-		"--disable-blink-features=AutomationControlled",
+		// Note: --disable-blink-features=AutomationControlled removed (deprecated Chrome 144+)
 		"--disable-features=IsolateOrigins,site-per-process",
 		"--disable-site-isolation-trials",
 		"--disable-web-security",

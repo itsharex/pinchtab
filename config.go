@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -54,6 +55,8 @@ var (
 	profileDir      = envOr("BRIDGE_PROFILE", filepath.Join(homeDir(), ".pinchtab", "chrome-profile"))
 	chromeVersion   = envOr("BRIDGE_CHROME_VERSION", "133.0.6943.98")
 	timezone        = os.Getenv("BRIDGE_TIMEZONE") // e.g. "America/New_York"
+	blockImages     = os.Getenv("BRIDGE_BLOCK_IMAGES") == "true"
+	blockMedia      = os.Getenv("BRIDGE_BLOCK_MEDIA") == "true" // superset: images + fonts + CSS + video
 	actionTimeout   = 15 * time.Second
 	navigateTimeout = 30 * time.Second
 	shutdownTimeout = 10 * time.Second
@@ -93,7 +96,9 @@ func loadConfig() {
 	// Try to load config file
 	if data, err := os.ReadFile(configPath); err == nil {
 		var cfg Config
-		if err := json.Unmarshal(data, &cfg); err == nil {
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			slog.Warn("invalid JSON in config file, ignoring", "path", configPath, "err", err)
+		} else {
 			// Apply config file values (env vars take precedence)
 			if cfg.Port != "" && os.Getenv("BRIDGE_PORT") == "" {
 				port = cfg.Port

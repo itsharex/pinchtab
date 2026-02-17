@@ -14,7 +14,7 @@
 
 | # | Scenario | Steps | Expected |
 |---|----------|-------|----------|
-| H1 | Health check | `GET /health` | 200, `{"status":"ok"}` |
+| H1 | Health check | `GET /health` | 200, `{"status":"ok"}` | ✅ Unit test (error path) |
 | H2 | Startup headless | `BRIDGE_HEADLESS=true ./pinchtab` | Launches, binds port, Chrome not visible |
 | H3 | Startup headed | `./pinchtab` | Chrome window opens, visible |
 | H4 | Custom port | `BRIDGE_PORT=9999 ./pinchtab` | Binds to 9999 |
@@ -140,8 +140,8 @@
 
 | # | Scenario | Steps | Expected |
 |---|----------|-------|----------|
-| CF1 | Config file | Create `~/.pinchtab/config.json` with port override, start | Uses config port |
-| CF2 | Env overrides config | Set `BRIDGE_PORT` env + config file port | Env wins |
+| CF1 | Config file | Create `~/.pinchtab/config.json` with port override, start | Uses config port | ✅ Unit test |
+| CF2 | Env overrides config | Set `BRIDGE_PORT` env + config file port | Env wins | ✅ Unit test |
 | CF3 | CDP_URL external Chrome | `CDP_URL=ws://... ./pinchtab` | Connects to existing Chrome, no launch |
 | CF4 | Custom profile dir | `BRIDGE_PROFILE=/tmp/test-profile ./pinchtab` | Uses specified profile |
 | CF5 | No restore | `BRIDGE_NO_RESTORE=true ./pinchtab` | Doesn't restore previous tabs |
@@ -253,10 +253,10 @@ Track these separately — they are known bugs, not test failures.
 
 | # | Issue | Severity | Status | Notes |
 |---|-------|----------|--------|-------|
-| K1 | Active tab tracking unreliable after navigate | 🔴 P0 | OPEN | `/text` and `/snapshot` return stale tab. Workaround: always pass `tabId` explicitly. |
-| K2 | Tab close hangs | 🟡 P1 | OPEN | Regression from Round 2 fixes. Was 400, now hangs indefinitely. |
-| K3 | x.com title always empty | 🟢 P2 | OPEN | SPA hydration too slow for navigate timeout. |
-| K4 | Chrome flag warning banner | 🟢 P2 | OPEN | `--disable-blink-features=AutomationControlled` deprecated in Chrome 144+. |
+| K1 | Active tab tracking unreliable after navigate | 🔴 P0 | ✅ FIXED | Confirmed working in autorun hour 00. |
+| K2 | Tab close hangs | 🟡 P1 | ✅ FIXED | Hour 07: switched to `target.CloseTarget` (browser-level CDP). No more hangs. |
+| K3 | x.com title always empty | 🟢 P2 | 🔧 IMPROVED | Hour 03: added `waitTitle` param to navigate. Agents can wait for SPA titles. |
+| K4 | Chrome flag warning banner | 🟢 P2 | ✅ FIXED | Removed deprecated flag (hour 05); CDP stealth handles it. |
 | K5 | Stealth PRNG weak (8F-2) | 🟡 P1 | ✅ FIXED | Now uses Mulberry32 with Go-injected seed. |
 | K6 | Chrome UA hardcoded to 131 (8F-6) | 🟡 P1 | ✅ FIXED | Configurable via `BRIDGE_CHROME_VERSION`, default 133. |
 | K7 | Fingerprint rotation JS-only (8F-7) | 🟢 P2 | ✅ FIXED | Now uses CDP `Emulation.SetUserAgentOverride` for UA/platform/language. |
