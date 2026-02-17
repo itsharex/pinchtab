@@ -230,6 +230,14 @@ func main() {
 	bridge.tabs[string(initTargetID)] = &TabEntry{ctx: browserCtx}
 	slog.Info("initial tab", "id", string(initTargetID))
 
+	// Navigate initial tab to welcome page in headed mode (after server starts)
+	if !headless {
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			_ = chromedp.Run(browserCtx, chromedp.Navigate("http://localhost:"+port+"/welcome"))
+		}()
+	}
+
 	if !noRestore {
 		// Restore in background so it doesn't block the HTTP server
 		go bridge.RestoreState()
@@ -258,6 +266,10 @@ func main() {
 	mux.HandleFunc("POST /cookies", bridge.handleSetCookies)
 	mux.HandleFunc("GET /stealth/status", bridge.handleStealthStatus)
 	mux.HandleFunc("POST /fingerprint/rotate", bridge.handleFingerprintRotate)
+	mux.HandleFunc("GET /welcome", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(welcomeHTML))
+	})
 
 	srv := &http.Server{Addr: ":" + port, Handler: loggingMiddleware(corsMiddleware(authMiddleware(mux)))}
 

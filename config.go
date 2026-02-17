@@ -45,6 +45,9 @@ var stealthScript string
 //go:embed readability.js
 var readabilityJS string
 
+//go:embed welcome.html
+var welcomeHTML string
+
 var (
 	port             = envOr("BRIDGE_PORT", "9867")
 	cdpURL           = os.Getenv("CDP_URL") // empty = launch Chrome ourselves

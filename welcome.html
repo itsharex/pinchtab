@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>🦀 Pinchtab</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  .container {
+    text-align: center;
+    animation: fadeIn 0.6s ease;
+  }
+  .logo {
+    font-size: 96px;
+    line-height: 1;
+    margin-bottom: 16px;
+    animation: pinch 2s ease-in-out infinite;
+  }
+  .name {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #fff;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .tagline {
+    font-size: 14px;
+    color: #666;
+    letter-spacing: 2px;
+    margin-bottom: 32px;
+  }
+  .status {
+    display: inline-block;
+    padding: 6px 16px;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #4a4a4a;
+  }
+  .status .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
+  @keyframes pinch {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05) rotate(-2deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">🦀</div>
+  <div class="name">Pinchtab</div>
+  <div class="tagline">BROWSER CONTROL FOR AI AGENTS</div>
+  <div class="status"><span class="dot"></span>listening on <span id="port">9867</span></div>
+</div>
+<script>
+  fetch('/health').then(r => r.json()).then(d => {
+    if (d.port) document.getElementById('port').textContent = d.port;
+  }).catch(() => {});
+</script>
+</body>
+</html>
