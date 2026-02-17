@@ -6,13 +6,15 @@
 
 ## DONE
 
-Core HTTP API (16 endpoints), session persistence, ref caching, action registry,
+Core HTTP API (18 endpoints), session persistence, ref caching, action registry,
 smart diff, readability `/text`, config file, Dockerfile, YAML/file output,
-stealth suite, human interaction (bezier mouse, typing sim), fingerprint rotation,
-image/media blocking, stealth injection on all tabs, K1-K11 all fixed,
-multi-agent concurrency verified (MA1-MA8), token optimization (`maxTokens`,
-`selector`, `format=compact`), Dockerfile env vars (`CHROME_BINARY`/`CHROME_FLAGS`
-now consumed by Go). **92 unit tests + ~100 integration, 28.9% coverage.**
+stealth suite (light/full modes), human interaction (bezier mouse, typing sim),
+fingerprint rotation, image/media blocking, stealth injection on all tabs,
+K1-K11 all fixed, multi-agent concurrency (MA1-MA8), token optimization
+(`maxTokens`, `selector`, `format=compact`), Dockerfile env vars consumed by Go,
+tab locking (`/tab/lock`, `/tab/unlock`), CSS animation disabling, welcome page
+(headed mode), stealth Date.getTimezoneOffset recursion fix, native Chrome UA.
+**100+ unit tests, ~100 integration, 36% coverage.**
 
 ---
 

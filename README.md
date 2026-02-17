@@ -168,7 +168,7 @@ All via environment variables:
 
 ```
 ┌─────────────┐     HTTP :9867    ┌──────────────┐                ┌─────────┐
-│  Any Agent  │ ──────────────►   │  Pinchtab    │  ── CDP ──►   │ Chrome  │
+│  Any Agent  │ ──────────────►   │  Pinchtab    │  ── CDP ──►    │ Chrome  │
 │  (OpenClaw, │  snapshot, act,   │              │                │         │
 │   PicoClaw, │  navigate, eval   │  stealth +   │                │  your   │
 │   curl,     │                   │  sessions +  │                │  tabs   │
