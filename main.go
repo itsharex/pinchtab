@@ -225,10 +225,11 @@ func main() {
 	bridge.initActionRegistry()
 	bridge.locks = newLockManager()
 
-	// Profile manager + dashboard
+	// Profile manager + dashboard + orchestrator
 	profilesDir := filepath.Join(filepath.Dir(profileDir), "profiles")
 	profMgr := NewProfileManager(profilesDir)
 	dashboard := NewDashboard()
+	orchestrator := NewOrchestrator(profilesDir)
 
 	// Register the initial tab
 	initTargetID := chromedp.FromContext(browserCtx).Target.TargetID
@@ -278,9 +279,12 @@ func main() {
 		_, _ = w.Write([]byte(welcomeHTML))
 	})
 
-	// Profile management + dashboard
+	// Profile management + dashboard + orchestrator
 	profMgr.RegisterHandlers(mux)
 	dashboard.RegisterHandlers(mux)
+	if os.Getenv("BRIDGE_NO_DASHBOARD") == "" {
+		orchestrator.RegisterHandlers(mux)
+	}
 
 	srv := &http.Server{Addr: ":" + port, Handler: dashboard.TrackingMiddleware(profMgr, loggingMiddleware(corsMiddleware(authMiddleware(mux))))}
 
@@ -289,6 +293,7 @@ func main() {
 	doShutdown := func() {
 		shutdownOnce.Do(func() {
 			slog.Info("shutting down, saving state...")
+			orchestrator.Shutdown()
 			cleanupCancel()
 			bridge.SaveState()
 			markCleanExit()

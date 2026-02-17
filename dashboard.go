@@ -447,6 +447,97 @@ const dashboardHTML = `<!DOCTYPE html>
   .profile-chip .psize { color: #555; margin-left: 8px; }
   .profile-chip .psource { color: #f5c542; font-size: 10px; margin-left: 6px; }
 
+  /* Instances view */
+  .instances-view { height: calc(100vh - 60px); display: flex; flex-direction: column; }
+  .inst-toolbar {
+    padding: 12px 24px;
+    border-bottom: 1px solid #222;
+    display: flex;
+    gap: 8px;
+  }
+  .launch-btn {
+    background: #f5c542;
+    color: #0a0a0a;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .refresh-btn {
+    background: #333;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .instances-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 14px;
+    padding: 16px 24px;
+    overflow-y: auto;
+    align-content: start;
+  }
+  .inst-card {
+    background: #151515;
+    border: 1px solid #222;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .inst-card .inst-header {
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .inst-card .inst-name { font-weight: bold; font-size: 16px; color: #f5c542; }
+  .inst-card .inst-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .inst-badge.running { background: #064e3b; color: #4ade80; }
+  .inst-badge.starting { background: #422006; color: #fbbf24; }
+  .inst-badge.stopped { background: #1c1917; color: #666; }
+  .inst-badge.error { background: #3a1a1a; color: #f87171; }
+  .inst-card .inst-body { padding: 12px 16px; }
+  .inst-card .inst-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 3px 0;
+  }
+  .inst-card .inst-row .label { color: #666; }
+  .inst-card .inst-row .value { color: #ccc; }
+  .inst-card .inst-actions {
+    padding: 10px 16px;
+    border-top: 1px solid #1a1a1a;
+    display: flex;
+    gap: 6px;
+  }
+  .inst-card .inst-actions button {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #aaa;
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .inst-card .inst-actions button:hover { border-color: #f5c542; color: #f5c542; }
+  .inst-card .inst-actions button.danger:hover { border-color: #f87171; color: #f87171; }
+
   /* View toggle */
   .view-toggle { margin-left: auto; display: flex; gap: 4px; }
   .view-btn {
@@ -577,6 +668,7 @@ const dashboardHTML = `<!DOCTYPE html>
   <div class="status"><span class="dot"></span>Live</div>
   <div class="view-toggle">
     <button class="view-btn active" data-view="feed" onclick="switchView('feed')">📋 Feed</button>
+    <button class="view-btn" data-view="instances" onclick="switchView('instances')">🖥️ Instances</button>
     <button class="view-btn" data-view="live" onclick="switchView('live')">📺 Live</button>
   </div>
 </header>
@@ -588,6 +680,35 @@ const dashboardHTML = `<!DOCTYPE html>
     <span id="live-tab-count" style="color:#666;font-size:12px;margin-left:12px"></span>
   </div>
   <div id="screencast-grid" class="screencast-grid"></div>
+</div>
+
+<!-- Instances view -->
+<div id="instances-view" class="instances-view" style="display:none">
+  <div class="inst-toolbar">
+    <button onclick="showLaunchModal()" class="launch-btn">+ Launch Instance</button>
+    <button onclick="loadInstances()" class="refresh-btn">↻ Refresh</button>
+  </div>
+  <div id="instances-grid" class="instances-grid">
+    <div class="empty-state"><div class="crab">🦀</div>No instances running.<br>Launch one to get started.</div>
+  </div>
+</div>
+
+<!-- Launch modal -->
+<div class="modal-overlay" id="launch-modal">
+  <div class="modal">
+    <h3>🦀 Launch Instance</h3>
+    <label style="color:#888;font-size:12px;display:block;margin-bottom:4px">Profile Name</label>
+    <input id="launch-name" placeholder="e.g. personal, work, scraping" />
+    <label style="color:#888;font-size:12px;display:block;margin-bottom:4px">Port</label>
+    <input id="launch-port" placeholder="e.g. 9868" />
+    <label style="color:#888;font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <input type="checkbox" id="launch-headless" checked /> Headless
+    </label>
+    <div class="btn-row">
+      <button class="secondary" onclick="closeLaunchModal()">Cancel</button>
+      <button onclick="doLaunch()">Launch</button>
+    </div>
+  </div>
 </div>
 
 <!-- Feed view (default) -->
@@ -839,8 +960,201 @@ function switchView(view) {
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('[data-view="'+view+'"]').classList.add('active');
   document.getElementById('feed-view').style.display = view === 'feed' ? 'flex' : 'none';
+  document.getElementById('instances-view').style.display = view === 'instances' ? 'flex' : 'none';
   document.getElementById('live-view').style.display = view === 'live' ? 'flex' : 'none';
   if (view === 'live') refreshTabs();
+  if (view === 'instances') loadInstances();
+}
+
+// ---------------------------------------------------------------------------
+// Instances
+// ---------------------------------------------------------------------------
+async function loadInstances() {
+  try {
+    const res = await fetch('/instances');
+    const instances = await res.json();
+    const grid = document.getElementById('instances-grid');
+
+    if (!instances || instances.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><div class="crab">🦀</div>No instances running.<br>Click <b>+ Launch Instance</b> to start one.</div>';
+      return;
+    }
+
+    grid.innerHTML = instances.map(inst => ` + "`" + `
+      <div class="inst-card">
+        <div class="inst-header">
+          <span class="inst-name">${esc(inst.name)}</span>
+          <span class="inst-badge ${inst.status}">${inst.status}</span>
+        </div>
+        <div class="inst-body">
+          <div class="inst-row"><span class="label">Port</span><span class="value">${esc(inst.port)}</span></div>
+          <div class="inst-row"><span class="label">Mode</span><span class="value">${inst.headless ? '🔲 Headless' : '🖥️ Headed'}</span></div>
+          <div class="inst-row"><span class="label">Tabs</span><span class="value">${inst.tabCount}</span></div>
+          <div class="inst-row"><span class="label">PID</span><span class="value">${inst.pid || '—'}</span></div>
+          <div class="inst-row"><span class="label">Profile</span><span class="value" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(inst.profile)}</span></div>
+          ${inst.error ? '<div class="inst-row"><span class="label">Error</span><span class="value" style="color:#f87171">' + esc(inst.error) + '</span></div>' : ''}
+        </div>
+        <div class="inst-actions">
+          <button onclick="viewInstanceLive('${esc(inst.id)}', '${esc(inst.port)}')">📺 Live</button>
+          <button onclick="viewInstanceLogs('${esc(inst.id)}')">📄 Logs</button>
+          <button onclick="openInstanceDirect('${esc(inst.port)}')">🔗 Open</button>
+          ${inst.status === 'running' ? '<button class="danger" onclick="stopInstance(\'' + esc(inst.id) + '\')">⏹ Stop</button>' : ''}
+        </div>
+      </div>
+    ` + "`" + `).join('');
+  } catch (e) {
+    console.error('Failed to load instances', e);
+  }
+}
+
+function showLaunchModal() {
+  document.getElementById('launch-modal').classList.add('open');
+  document.getElementById('launch-name').focus();
+}
+function closeLaunchModal() {
+  document.getElementById('launch-modal').classList.remove('open');
+}
+
+async function doLaunch() {
+  const name = document.getElementById('launch-name').value.trim();
+  const port = document.getElementById('launch-port').value.trim();
+  const headless = document.getElementById('launch-headless').checked;
+
+  if (!name || !port) { alert('Name and port required'); return; }
+
+  closeLaunchModal();
+
+  try {
+    const res = await fetch('/instances/launch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, port, headless })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Launch failed: ' + (data.error || 'unknown'));
+      return;
+    }
+    // Poll until running
+    pollInstanceStatus(data.id);
+  } catch (e) {
+    alert('Launch error: ' + e.message);
+  }
+}
+
+function pollInstanceStatus(id) {
+  let attempts = 0;
+  const poll = setInterval(async () => {
+    attempts++;
+    await loadInstances();
+    if (attempts > 30) clearInterval(poll);
+    try {
+      const res = await fetch('/instances');
+      const instances = await res.json();
+      const inst = instances.find(i => i.id === id);
+      if (inst && (inst.status === 'running' || inst.status === 'error' || inst.status === 'stopped')) {
+        clearInterval(poll);
+        loadInstances();
+      }
+    } catch(e) { clearInterval(poll); }
+  }, 1000);
+}
+
+async function stopInstance(id) {
+  if (!confirm('Stop instance ' + id + '?')) return;
+  await fetch('/instances/' + id + '/stop', { method: 'POST' });
+  setTimeout(loadInstances, 1000);
+}
+
+async function viewInstanceLogs(id) {
+  const res = await fetch('/instances/' + id + '/logs');
+  const text = await res.text();
+  const modal = document.getElementById('modal');
+  const title = document.getElementById('modal-title');
+  const body = document.getElementById('modal-body');
+  title.textContent = 'Logs: ' + id;
+  body.innerHTML = '<pre style="background:#0a0a0a;padding:12px;border-radius:6px;font-size:11px;max-height:400px;overflow:auto;color:#aaa;white-space:pre-wrap">' + esc(text) + '</pre><div class="btn-row" style="margin-top:12px"><button class="secondary" onclick="closeModal()">Close</button></div>';
+  modal.classList.add('open');
+}
+
+async function viewInstanceLive(id, port) {
+  // Switch to live view and load tabs from that instance
+  switchView('live');
+  try {
+    const res = await fetch('/instances/tabs');
+    const tabs = await res.json();
+    const instTabs = tabs.filter(t => t.instancePort === port);
+    const grid = document.getElementById('screencast-grid');
+    document.getElementById('live-tab-count').textContent = instTabs.length + ' tab(s) on ' + id;
+
+    if (instTabs.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><div class="crab">🦀</div>No tabs in this instance.</div>';
+      return;
+    }
+
+    grid.innerHTML = instTabs.map(t => ` + "`" + `
+      <div class="screen-tile" id="tile-${t.tabId}">
+        <div class="tile-header">
+          <span>
+            <span class="tile-id">${esc(t.instanceName)}:${t.tabId.substring(0, 6)}</span>
+            <span class="tile-status connecting" id="status-${t.tabId}"></span>
+          </span>
+          <span class="tile-url" id="url-${t.tabId}">${esc(t.url || 'about:blank')}</span>
+        </div>
+        <canvas id="canvas-${t.tabId}" width="800" height="600"></canvas>
+        <div class="tile-footer">
+          <span id="fps-${t.tabId}">—</span>
+          <span id="size-${t.tabId}">—</span>
+        </div>
+      </div>
+    ` + "`" + `).join('');
+
+    // Connect screencast directly to child instance
+    instTabs.forEach(t => {
+      startScreencastDirect(t.tabId, t.instancePort);
+    });
+  } catch (e) {
+    console.error('Failed to load instance tabs', e);
+  }
+}
+
+function startScreencastDirect(tabId, port) {
+  const wsUrl = 'ws://localhost:' + port + '/screencast?tabId=' + tabId + '&quality=50&maxWidth=800';
+  const socket = new WebSocket(wsUrl);
+  socket.binaryType = 'arraybuffer';
+  screencastSockets[tabId] = socket;
+
+  const canvas = document.getElementById('canvas-' + tabId);
+  if (!canvas) return;
+  const ctx2d = canvas.getContext('2d');
+
+  let frameCount = 0;
+  let lastFpsTime = Date.now();
+  const statusEl = document.getElementById('status-' + tabId);
+  const fpsEl = document.getElementById('fps-' + tabId);
+  const sizeEl = document.getElementById('size-' + tabId);
+
+  socket.onopen = () => { if (statusEl) statusEl.className = 'tile-status streaming'; };
+  socket.onmessage = (evt) => {
+    const blob = new Blob([evt.data], { type: 'image/jpeg' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { canvas.width = img.width; canvas.height = img.height; ctx2d.drawImage(img, 0, 0); URL.revokeObjectURL(url); };
+    img.src = url;
+    frameCount++;
+    const now = Date.now();
+    if (now - lastFpsTime >= 1000) {
+      if (fpsEl) fpsEl.textContent = frameCount + ' fps';
+      if (sizeEl) sizeEl.textContent = (evt.data.byteLength / 1024).toFixed(0) + ' KB/frame';
+      frameCount = 0; lastFpsTime = now;
+    }
+  };
+  socket.onerror = () => { if (statusEl) statusEl.className = 'tile-status error'; };
+  socket.onclose = () => { if (statusEl) statusEl.className = 'tile-status error'; };
+}
+
+function openInstanceDirect(port) {
+  window.open('http://localhost:' + port + '/dashboard', '_blank');
 }
 
 // ---------------------------------------------------------------------------
