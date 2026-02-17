@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -112,6 +113,19 @@ func main() {
 			// Identity
 			chromedp.UserAgent(fmt.Sprintf("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36", chromeVersion)),
 			chromedp.WindowSize(1366, 768),
+		}
+
+		if chromeBinary != "" {
+			chromeOpts = append(chromeOpts, chromedp.ExecPath(chromeBinary))
+		}
+		if chromeExtraFlags != "" {
+			for _, f := range strings.Fields(chromeExtraFlags) {
+				if k, v, ok := strings.Cut(f, "="); ok {
+					chromeOpts = append(chromeOpts, chromedp.Flag(strings.TrimLeft(k, "-"), v))
+				} else {
+					chromeOpts = append(chromeOpts, chromedp.Flag(strings.TrimLeft(f, "-"), true))
+				}
+			}
 		}
 
 		if headless {

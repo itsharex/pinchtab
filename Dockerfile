@@ -39,7 +39,7 @@ ENV BRIDGE_PORT=9867 \
     BRIDGE_STATE_DIR=/data \
     BRIDGE_PROFILE=/data/chrome-profile \
     CHROME_BINARY=/usr/bin/chromium-browser \
-    CHROME_FLAGS="--no-sandbox"
+    CHROME_FLAGS="--no-sandbox --disable-gpu"
 
 # Expose port
 EXPOSE 9867
