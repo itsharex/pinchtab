@@ -77,7 +77,7 @@ BRIDGE_HEADLESS=true ./pinchtab
 
 ### Headless Mode (recommended)
 
-<img src="assets/pinchtab-icon-192.jpg" width="64" alt="Pinchtab" />
+<img src="assets/pinchtab-icon.png" width="64" alt="Pinchtab" />
 
 The primary mode. Chrome runs invisibly in the background — no window, pure API. This is what Pinchtab is built and tested for. Best for servers, CI, Docker, and unattended automation.
 
