@@ -687,6 +687,7 @@ const dashboardHTML = `<!DOCTYPE html>
   <div class="inst-toolbar">
     <button onclick="showLaunchModal()" class="launch-btn">+ Launch Instance</button>
     <button onclick="loadInstances()" class="refresh-btn">↻ Refresh</button>
+    <div id="profiles-bar" style="display:flex;gap:8px;margin-left:16px;overflow-x:auto"></div>
   </div>
   <div id="instances-grid" class="instances-grid">
     <div class="empty-state"><div class="crab">🦀</div>No instances running.<br>Launch one to get started.</div>
@@ -737,8 +738,6 @@ const dashboardHTML = `<!DOCTYPE html>
 </div>
 
 </div><!-- end feed-view -->
-
-<div class="profiles-bar" id="profiles-bar"></div>
 
 <!-- Profile management modal -->
 <div class="modal-overlay" id="modal">
@@ -950,8 +949,6 @@ function timeAgo(d) {
 }
 
 connect();
-loadProfiles();
-setInterval(loadProfiles, 30000);
 
 // ---------------------------------------------------------------------------
 // View switching
@@ -970,6 +967,24 @@ function switchView(view) {
 // Instances
 // ---------------------------------------------------------------------------
 async function loadInstances() {
+  // Load profiles into toolbar
+  try {
+    const pres = await fetch('/profiles');
+    const profiles = await pres.json();
+    const bar = document.getElementById('profiles-bar');
+    if (profiles && profiles.length > 0) {
+      bar.innerHTML = profiles.map(p => ` + "`" + `
+        <div class="profile-chip" onclick="showProfileModal('${esc(p.name)}')">
+          <span class="pname">${esc(p.name)}</span>
+          <span class="psize">${p.sizeMB.toFixed(0)}MB</span>
+          <span class="psource">${p.source}</span>
+        </div>
+      ` + "`" + `).join('');
+    } else {
+      bar.innerHTML = '';
+    }
+  } catch(e) {}
+
   try {
     const res = await fetch('/instances');
     const instances = await res.json();

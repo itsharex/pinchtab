@@ -53,12 +53,18 @@ func (pm *ProfileManager) List() ([]ProfileInfo, error) {
 	}
 
 	var profiles []ProfileInfo
+	// Directories that aren't profiles
+	skip := map[string]bool{"bin": true, "profiles": true}
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() || skip[e.Name()] {
 			continue
 		}
 		info, err := pm.profileInfo(e.Name())
 		if err != nil {
+			continue
+		}
+		// Must have a Default/ subdirectory to be a valid Chrome profile
+		if _, err := os.Stat(filepath.Join(pm.baseDir, e.Name(), "Default")); err != nil {
 			continue
 		}
 		profiles = append(profiles, info)
