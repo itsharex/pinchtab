@@ -20,8 +20,8 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	tabID := r.URL.Query().Get("tabId")
 	filter := r.URL.Query().Get("filter")
 	doDiff := r.URL.Query().Get("diff") == "true"
-	format := r.URL.Query().Get("format") // "text" for indented tree
-	output := r.URL.Query().Get("output") // "file" to save to disk
+	format := r.URL.Query().Get("format")   // "text" for indented tree
+	output := r.URL.Query().Get("output")   // "file" to save to disk
 	outputPath := r.URL.Query().Get("path") // custom file path for output=file
 	maxDepthStr := r.URL.Query().Get("depth")
 	maxDepth := -1
