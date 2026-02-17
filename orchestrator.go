@@ -72,10 +72,42 @@ func (rb *ringBuffer) String() string {
 }
 
 func NewOrchestrator(baseDir string) *Orchestrator {
-	// Find the pinchtab binary
-	binary, _ := os.Executable()
-	if binary == "" {
-		binary = os.Args[0]
+	// Resolve a stable binary path:
+	// 1. ~/.pinchtab/bin/pinchtab (installed)
+	// 2. Build from source if go available
+	// 3. os.Executable() fallback (fragile with go run)
+	binDir := filepath.Join(filepath.Dir(baseDir), "bin")
+	stableBin := filepath.Join(binDir, "pinchtab")
+
+	// If stable binary doesn't exist or is older than source, rebuild
+	needsBuild := true
+	if fi, err := os.Stat(stableBin); err == nil {
+		// Exists — check if it's recent enough (within 1 hour)
+		if time.Since(fi.ModTime()) < time.Hour {
+			needsBuild = false
+		}
+	}
+
+	if needsBuild {
+		os.MkdirAll(binDir, 0755)
+		// Try to copy current executable
+		exe, _ := os.Executable()
+		if exe != "" {
+			if data, err := os.ReadFile(exe); err == nil {
+				if err := os.WriteFile(stableBin, data, 0755); err == nil {
+					slog.Info("installed pinchtab binary", "path", stableBin)
+				}
+			}
+		}
+	}
+
+	binary := stableBin
+	if _, err := os.Stat(binary); err != nil {
+		// Fallback
+		binary, _ = os.Executable()
+		if binary == "" {
+			binary = os.Args[0]
+		}
 	}
 
 	return &Orchestrator{
