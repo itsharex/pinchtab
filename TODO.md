@@ -20,8 +20,8 @@ K1-K9 all fixed, multi-agent concurrency verified (MA1-MA8).
 
 ## Open
 
-### P0: Stability
-- [ ] **K10 — Profile hang** — Stale lock files + restored tabs cause Chrome startup hang. Add lock cleanup on startup + Chrome connection timeout. Users will hit this on first real use.
+### ~~P0: Stability~~ — DONE
+- [x] **K10 — Profile hang** — Fixed: lock file cleanup, unclean exit detection, 15s Chrome timeout, auto-retry with session clear.
 - [ ] **Coverage to 30%** — Add tests for cookie/stealth handler happy paths (~2% gap).
 
 ### P1: Token Optimization
