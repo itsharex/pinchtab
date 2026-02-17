@@ -166,6 +166,38 @@ func (b *Bridge) CreateTab(url string) (string, context.Context, context.CancelF
 // CloseTab closes a tab by ID and cleans up caches.
 func (b *Bridge) CloseTab(tabID string) error {
 	b.mu.Lock()
+	entry, ok := b.tabs[tabID]
+	b.mu.Unlock()
+
+	// Close the tab via CDP first, using the existing context if available,
+	// otherwise create a temporary one.
+	if ok && entry.cancel != nil {
+		// Use the existing tab context to close the page.
+		if err := chromedp.Run(entry.ctx, page.Close()); err != nil {
+			// If the existing context fails, try a fresh one.
+			ctx, cancel := chromedp.NewContext(b.browserCtx,
+				chromedp.WithTargetID(target.ID(tabID)),
+			)
+			err2 := chromedp.Run(ctx, page.Close())
+			cancel()
+			if err2 != nil {
+				return fmt.Errorf("close tab: %w", err2)
+			}
+		}
+	} else {
+		// No tracked entry — try closing by target ID directly.
+		ctx, cancel := chromedp.NewContext(b.browserCtx,
+			chromedp.WithTargetID(target.ID(tabID)),
+		)
+		err := chromedp.Run(ctx, page.Close())
+		cancel()
+		if err != nil {
+			return fmt.Errorf("close tab: %w", err)
+		}
+	}
+
+	// Clean up local state after successful close.
+	b.mu.Lock()
 	if entry, ok := b.tabs[tabID]; ok {
 		if entry.cancel != nil {
 			entry.cancel()
@@ -175,13 +207,6 @@ func (b *Bridge) CloseTab(tabID string) error {
 	}
 	b.mu.Unlock()
 
-	ctx, cancel := chromedp.NewContext(b.browserCtx,
-		chromedp.WithTargetID(target.ID(tabID)),
-	)
-	defer cancel()
-	if err := chromedp.Run(ctx, page.Close()); err != nil {
-		return fmt.Errorf("close tab: %w", err)
-	}
 	return nil
 }
 
