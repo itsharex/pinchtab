@@ -122,6 +122,7 @@ func main() {
 	// Inject stealth script with a session-stable seed (stays constant across page loads)
 	stealthSeed := rand.Intn(1000000000)
 	seededScript := fmt.Sprintf("var __pinchtab_seed = %d;\n", stealthSeed) + stealthScript
+	bridge.stealthScript = seededScript // store for new tab injection
 	if err := chromedp.Run(browserCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, err := page.AddScriptToEvaluateOnNewDocument(seededScript).Do(ctx)

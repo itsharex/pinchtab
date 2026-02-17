@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cdp "github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
@@ -29,11 +30,26 @@ type refCache struct {
 // Bridge is the central state holder for the Chrome connection, tab contexts,
 // and per-tab snapshot caches.
 type Bridge struct {
-	allocCtx   context.Context
-	browserCtx context.Context
-	tabs       map[string]*TabEntry
-	snapshots  map[string]*refCache
-	mu         sync.RWMutex
+	allocCtx      context.Context
+	browserCtx    context.Context
+	tabs          map[string]*TabEntry
+	snapshots     map[string]*refCache
+	stealthScript string // injected on every new tab
+	mu            sync.RWMutex
+}
+
+// injectStealth adds the stealth script to a tab context so it runs on every
+// new document load (including navigations).
+func (b *Bridge) injectStealth(ctx context.Context) {
+	if b.stealthScript == "" {
+		return
+	}
+	_ = chromedp.Run(ctx,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			_, err := page.AddScriptToEvaluateOnNewDocument(b.stealthScript).Do(ctx)
+			return err
+		}),
+	)
 }
 
 // TabContext returns the chromedp context for a tab and the resolved tabID.
@@ -78,6 +94,9 @@ func (b *Bridge) TabContext(tabID string) (context.Context, string, error) {
 		cancel()
 		return nil, "", fmt.Errorf("tab %s not found: %w", tabID, err)
 	}
+
+	// Inject stealth script on newly attached tabs
+	b.injectStealth(ctx)
 
 	b.tabs[tabID] = &TabEntry{ctx: ctx, cancel: cancel}
 	return ctx, tabID, nil
@@ -148,6 +167,9 @@ func (b *Bridge) CreateTab(url string) (string, context.Context, context.CancelF
 		return "", nil, nil, fmt.Errorf("no browser context available")
 	}
 	ctx, cancel := chromedp.NewContext(b.browserCtx)
+
+	// Inject stealth script before navigation so it applies to the first page load
+	b.injectStealth(ctx)
 
 	navURL := "about:blank"
 	if url != "" {
