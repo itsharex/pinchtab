@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -186,8 +187,11 @@ func (d *Dashboard) TrackingMiddleware(pm *ProfileManager, next http.Handler) ht
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// Skip dashboard routes
-		if r.URL.Path == "/dashboard" || r.URL.Path == "/dashboard/agents" || r.URL.Path == "/dashboard/events" {
+		// Skip dashboard, profile, instance, and screencast management routes
+		p := r.URL.Path
+		if strings.HasPrefix(p, "/dashboard") || strings.HasPrefix(p, "/profiles") ||
+			strings.HasPrefix(p, "/instances") || strings.HasPrefix(p, "/screencast/tabs") ||
+			p == "/welcome" || p == "/favicon.ico" || p == "/health" {
 			next.ServeHTTP(w, r)
 			return
 		}

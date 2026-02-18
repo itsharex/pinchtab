@@ -188,7 +188,8 @@ func TestTrackingMiddlewareAnonymous(t *testing.T) {
 	})
 
 	handler := d.TrackingMiddleware(pm, inner)
-	req := httptest.NewRequest("GET", "/health", nil)
+	// Use /snapshot (a real agent endpoint, not skipped)
+	req := httptest.NewRequest("GET", "/snapshot", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -198,26 +199,25 @@ func TestTrackingMiddlewareAnonymous(t *testing.T) {
 	}
 }
 
-func TestTrackingMiddlewareSkipsDashboard(t *testing.T) {
+func TestTrackingMiddlewareSkipsManagementRoutes(t *testing.T) {
 	d := NewDashboard()
 	pm := NewProfileManager(t.TempDir())
 
-	called := false
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
 		w.WriteHeader(200)
 	})
 
 	handler := d.TrackingMiddleware(pm, inner)
-	req := httptest.NewRequest("GET", "/dashboard", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
 
-	if !called {
-		t.Error("inner handler should be called")
+	// All of these should be skipped
+	for _, path := range []string{"/dashboard", "/profiles", "/instances", "/health", "/welcome", "/favicon.ico"} {
+		req := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
 	}
+
 	agents := d.GetAgents()
 	if len(agents) != 0 {
-		t.Error("dashboard routes should not be tracked")
+		t.Errorf("management routes should not be tracked, got %+v", agents)
 	}
 }
