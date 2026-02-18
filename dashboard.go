@@ -1076,17 +1076,71 @@ async function resetProfile(name) {
 }
 
 async function viewAnalytics(name) {
-  const res = await fetch('/profiles/' + name + '/analytics');
-  const data = await res.json();
+  const modal = document.getElementById('modal');
+  const title = document.getElementById('modal-title');
   const body = document.getElementById('modal-body');
-  body.innerHTML = ` + "`" + `
-    <p style="color:#888;margin-bottom:8px">${data.totalActions} total actions</p>
-    ${data.suggestions.map(s => '<p style="color:#f5c542;font-size:13px;margin-bottom:4px">💡 ' + esc(s) + '</p>').join('')}
-    ${data.topEndpoints ? '<h4 style="color:#888;margin-top:12px;font-size:12px">TOP ENDPOINTS</h4>' + data.topEndpoints.map(e => '<div style="font-size:12px;color:#aaa;padding:2px 0">' + esc(e.endpoint) + ' — ' + e.count + 'x, avg ' + e.avgMs + 'ms</div>').join('') : ''}
-    <div class="btn-row" style="margin-top:16px">
-      <button class="secondary" onclick="closeModal()">Close</button>
-    </div>
-  ` + "`" + `;
+  title.textContent = '📊 Analytics: ' + name;
+
+  // Try to get analytics data
+  let analytics = null;
+  try {
+    const res = await fetch('/profiles/' + name + '/analytics');
+    if (res.ok) analytics = await res.json();
+  } catch(e) {}
+
+  // Get live server stats
+  let tabs = [], agents = [];
+  try {
+    const tabsRes = await fetch('/tabs');
+    const tabsData = await tabsRes.json();
+    tabs = tabsData.tabs || [];
+  } catch(e) {}
+  try {
+    const agentsRes = await fetch('/dashboard/agents');
+    agents = await agentsRes.json() || [];
+  } catch(e) {}
+
+  let html = '';
+
+  // Live stats
+  html += '<h4 style="color:#888;font-size:12px;margin-bottom:8px">LIVE STATUS</h4>';
+  html += '<div style="font-size:13px;color:#aaa;margin-bottom:4px">Tabs open: <span style="color:#e0e0e0">' + tabs.length + '</span></div>';
+  html += '<div style="font-size:13px;color:#aaa;margin-bottom:12px">Agents seen: <span style="color:#e0e0e0">' + agents.length + '</span></div>';
+
+  // Agent breakdown
+  if (agents.length > 0) {
+    html += '<h4 style="color:#888;font-size:12px;margin-bottom:8px">AGENTS</h4>';
+    agents.forEach(a => {
+      html += '<div style="font-size:12px;color:#aaa;padding:3px 0;display:flex;justify-content:space-between">';
+      html += '<span style="color:#f5c542;font-weight:600">' + esc(a.agentId) + '</span>';
+      html += '<span>' + a.actionCount + ' actions — ' + esc(a.lastAction || '') + '</span>';
+      html += '</div>';
+    });
+    html += '<div style="margin-bottom:12px"></div>';
+  }
+
+  // Tracked analytics if available
+  if (analytics && analytics.totalActions > 0) {
+    html += '<h4 style="color:#888;font-size:12px;margin-bottom:8px">TRACKED (' + analytics.totalActions + ' actions)</h4>';
+    if (analytics.topEndpoints) {
+      analytics.topEndpoints.forEach(e => {
+        html += '<div style="font-size:12px;color:#aaa;padding:2px 0">' + esc(e.endpoint) + ' — ' + e.count + 'x, avg ' + e.avgMs + 'ms</div>';
+      });
+    }
+    if (analytics.suggestions) {
+      html += '<div style="margin-top:8px">';
+      analytics.suggestions.forEach(s => {
+        html += '<p style="color:#f5c542;font-size:12px;margin-bottom:4px">💡 ' + esc(s) + '</p>';
+      });
+      html += '</div>';
+    }
+  } else {
+    html += '<p style="color:#555;font-size:12px">No tracked actions yet. Agents need to send <code style="color:#888">X-Profile</code> header to track per-profile analytics.</p>';
+  }
+
+  html += '<div class="btn-row" style="margin-top:16px"><button class="secondary" onclick="closeModal()">Close</button></div>';
+  body.innerHTML = html;
+  modal.classList.add('open');
 }
 
 document.getElementById('modal').addEventListener('click', (e) => {
