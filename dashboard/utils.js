@@ -52,3 +52,34 @@ function appAlert(message, title) {
 function closeModal() {
   document.getElementById('modal').classList.remove('open');
 }
+
+// Reusable modal — pass title + HTML content + optional footer buttons
+function showModal(title, bodyHtml, buttons) {
+  const modal = document.getElementById('modal');
+  document.getElementById('modal-title').textContent = title;
+  let html = bodyHtml;
+  if (buttons) {
+    html += '<div class="btn-row" style="margin-top:16px">' + buttons + '</div>';
+  } else {
+    html += '<div class="btn-row" style="margin-top:16px"><button class="secondary" onclick="closeModal()">Close</button></div>';
+  }
+  document.getElementById('modal-body').innerHTML = html;
+  modal.classList.add('open');
+}
+
+// Fetch with error handling — returns {ok, data} or shows alert on failure
+async function apiFetch(url, options) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      await appAlert(err.error || 'Request failed', 'Error');
+      return { ok: false };
+    }
+    const data = await res.json().catch(() => null);
+    return { ok: true, data };
+  } catch (e) {
+    await appAlert('Network error: ' + e.message, 'Error');
+    return { ok: false };
+  }
+}

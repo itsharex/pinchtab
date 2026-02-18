@@ -4,7 +4,18 @@
 // Profile management — cards, launch, create, delete
 // ---------------------------------------------------------------------------
 
+let profilesLoading = false;
+
 async function loadProfiles() {
+  if (profilesLoading) return; // debounce concurrent calls
+  profilesLoading = true;
+
+  const grid = document.getElementById('profiles-grid');
+  // Show spinner only on first load (when grid is empty or has placeholder)
+  if (!grid.querySelector('.inst-card')) {
+    grid.innerHTML = '<div class="loading-overlay"><span class="spinner"></span>Loading profiles...</div>';
+  }
+
   try {
     const [profRes, instRes, healthRes, tabsRes] = await Promise.all([
       fetch('/profiles'),
@@ -39,6 +50,9 @@ async function loadProfiles() {
     grid.innerHTML = cards.join('');
   } catch (e) {
     console.error('Failed to load profiles', e);
+    grid.innerHTML = '<div class="loading-overlay">Failed to load profiles. <button onclick="loadProfiles()" class="refresh-btn" style="margin-left:8px">↻ Retry</button></div>';
+  } finally {
+    profilesLoading = false;
   }
 }
 
@@ -250,20 +264,12 @@ async function stopInstance(id) {
 async function viewInstanceLogs(id) {
   const res = await fetch('/instances/' + id + '/logs');
   const text = await res.text();
-  const modal = document.getElementById('modal');
-  const title = document.getElementById('modal-title');
-  const body = document.getElementById('modal-body');
-  title.textContent = 'Logs: ' + id;
-  body.innerHTML = '<pre style="background:#0a0a0a;padding:12px;border-radius:6px;font-size:11px;max-height:400px;overflow:auto;color:#aaa;white-space:pre-wrap">' + esc(text) + '</pre><div class="btn-row" style="margin-top:12px"><button class="secondary" onclick="closeModal()">Close</button></div>';
-  modal.classList.add('open');
+  showModal('📄 Logs: ' + id,
+    '<pre style="background:var(--bg);padding:12px;border-radius:6px;font-size:11px;max-height:400px;overflow:auto;color:var(--text-subtle);white-space:pre-wrap">' + esc(text) + '</pre>'
+  );
 }
 
 async function viewAnalytics(name) {
-  const modal = document.getElementById('modal');
-  const title = document.getElementById('modal-title');
-  const body = document.getElementById('modal-body');
-  title.textContent = '📊 Analytics: ' + name;
-
   let analytics = null;
   try {
     const res = await fetch('/profiles/' + name + '/analytics');
@@ -282,15 +288,15 @@ async function viewAnalytics(name) {
   } catch (e) {}
 
   let html = '';
-  html += '<h4 style="color:#888;font-size:12px;margin-bottom:8px">LIVE STATUS</h4>';
-  html += '<div style="font-size:13px;color:#aaa;margin-bottom:4px">Tabs open: <span style="color:#e0e0e0">' + tabs.length + '</span></div>';
-  html += '<div style="font-size:13px;color:#aaa;margin-bottom:12px">Agents seen: <span style="color:#e0e0e0">' + agentList.length + '</span></div>';
+  html += '<h4 style="color:var(--text-muted);font-size:12px;margin-bottom:8px">LIVE STATUS</h4>';
+  html += '<div style="font-size:13px;color:var(--text-subtle);margin-bottom:4px">Tabs open: <span style="color:var(--text)">' + tabs.length + '</span></div>';
+  html += '<div style="font-size:13px;color:var(--text-subtle);margin-bottom:12px">Agents seen: <span style="color:var(--text)">' + agentList.length + '</span></div>';
 
   if (agentList.length > 0) {
-    html += '<h4 style="color:#888;font-size:12px;margin-bottom:8px">AGENTS</h4>';
+    html += '<h4 style="color:var(--text-muted);font-size:12px;margin-bottom:8px">AGENTS</h4>';
     agentList.forEach(a => {
-      html += '<div style="font-size:12px;color:#aaa;padding:3px 0;display:flex;justify-content:space-between">';
-      html += '<span style="color:#f5c542;font-weight:600">' + esc(a.agentId) + '</span>';
+      html += '<div style="font-size:12px;color:var(--text-subtle);padding:3px 0;display:flex;justify-content:space-between">';
+      html += '<span style="color:var(--primary);font-weight:600">' + esc(a.agentId) + '</span>';
       html += '<span>' + a.actionCount + ' actions — ' + esc(a.lastAction || '') + '</span>';
       html += '</div>';
     });
@@ -298,26 +304,24 @@ async function viewAnalytics(name) {
   }
 
   if (analytics && analytics.totalActions > 0) {
-    html += '<h4 style="color:#888;font-size:12px;margin-bottom:8px">TRACKED (' + analytics.totalActions + ' actions)</h4>';
+    html += '<h4 style="color:var(--text-muted);font-size:12px;margin-bottom:8px">TRACKED (' + analytics.totalActions + ' actions)</h4>';
     if (analytics.topEndpoints) {
       analytics.topEndpoints.forEach(e => {
-        html += '<div style="font-size:12px;color:#aaa;padding:2px 0">' + esc(e.endpoint) + ' — ' + e.count + 'x, avg ' + e.avgMs + 'ms</div>';
+        html += '<div style="font-size:12px;color:var(--text-subtle);padding:2px 0">' + esc(e.endpoint) + ' — ' + e.count + 'x, avg ' + e.avgMs + 'ms</div>';
       });
     }
     if (analytics.suggestions) {
       html += '<div style="margin-top:8px">';
       analytics.suggestions.forEach(s => {
-        html += '<p style="color:#f5c542;font-size:12px;margin-bottom:4px">💡 ' + esc(s) + '</p>';
+        html += '<p style="color:var(--primary);font-size:12px;margin-bottom:4px">💡 ' + esc(s) + '</p>';
       });
       html += '</div>';
     }
   } else {
-    html += '<p style="color:#555;font-size:12px">No tracked actions yet. Agents need to send <code style="color:#888">X-Profile</code> header to track per-profile analytics.</p>';
+    html += '<p style="color:var(--text-faint);font-size:12px">No tracked actions yet. Agents need to send <code style="color:var(--text-muted)">X-Profile</code> header to track per-profile analytics.</p>';
   }
 
-  html += '<div class="btn-row" style="margin-top:16px"><button class="secondary" onclick="closeModal()">Close</button></div>';
-  body.innerHTML = html;
-  modal.classList.add('open');
+  showModal('📊 Analytics: ' + name, html);
 }
 
 document.getElementById('modal').addEventListener('click', (e) => {
