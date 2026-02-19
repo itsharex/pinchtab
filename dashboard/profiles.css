@@ -1,4 +1,4 @@
-  /* Profiles panel (bottom) */
+  
   .profiles-bar {
     border-top: 1px solid var(--border);
     padding: 12px 24px;
@@ -22,7 +22,7 @@
   .profile-chip .psize { color: var(--text-faint); margin-left: 8px; }
   .profile-chip .psource { color: var(--primary); font-size: 10px; margin-left: 6px; }
 
-  /* Instances view */
+  
   .instances-view { height: calc(100vh - 60px); display: flex; flex-direction: column; }
   .inst-toolbar {
     padding: 12px 24px;

@@ -1,9 +1,5 @@
 'use strict';
 
-// ---------------------------------------------------------------------------
-// App init — view switching, SSE connection
-// ---------------------------------------------------------------------------
-
 let profilesInterval = null;
 
 function switchView(view) {
@@ -18,7 +14,6 @@ function switchView(view) {
   if (view === 'profiles') loadProfiles();
   if (view === 'settings') loadSettings();
 
-  // Auto-refresh profiles every 3s while on that view
   if (profilesInterval) { clearInterval(profilesInterval); profilesInterval = null; }
   if (view === 'profiles') {
     profilesInterval = setInterval(loadProfiles, 3000);
@@ -29,5 +24,4 @@ function openInstanceDirect(port) {
   window.open('http://localhost:' + port + '/dashboard', '_blank');
 }
 
-// Boot
 connect();

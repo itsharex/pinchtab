@@ -1,17 +1,12 @@
 'use strict';
 
-// ---------------------------------------------------------------------------
-// Profile management — cards, launch, create, delete
-// ---------------------------------------------------------------------------
-
 let profilesLoading = false;
 
 async function loadProfiles() {
-  if (profilesLoading) return; // debounce concurrent calls
+  if (profilesLoading) return;
   profilesLoading = true;
 
   const grid = document.getElementById('profiles-grid');
-  // Show spinner only on first load (when grid is empty or has placeholder)
   if (!grid.querySelector('.inst-card')) {
     grid.innerHTML = '<div class="loading-overlay"><span class="spinner"></span>Loading profiles...</div>';
   }
@@ -37,7 +32,6 @@ async function loadProfiles() {
     const grid = document.getElementById('profiles-grid');
     const cards = [];
 
-    // Only show Main card if we're running in embedded mode (bridge serves /health with no "mode")
     if (!health.mode) {
       cards.push(renderMainCard(tabsData.tabs ? tabsData.tabs.length : 0));
     }
@@ -119,9 +113,6 @@ function renderProfileCard(name, sizeMB, source, inst) {
   `;
 }
 
-// ---------------------------------------------------------------------------
-// Profile CRUD + launch
-// ---------------------------------------------------------------------------
 
 function showCreateProfileModal() {
   document.getElementById('create-profile-modal').classList.add('open');
@@ -157,9 +148,7 @@ async function doCreateProfile() {
   } catch (e) { await appAlert('Failed: ' + e.message, 'Error'); }
 }
 
-// ---------------------------------------------------------------------------
-// Port/mode memory (localStorage)
-// ---------------------------------------------------------------------------
+ 
 
 function getProfilePort(name) {
   const saved = localStorage.getItem('pinchtab-port-' + name);
@@ -236,9 +225,6 @@ async function resetProfile(name) {
   loadProfiles();
 }
 
-// ---------------------------------------------------------------------------
-// Instance lifecycle
-// ---------------------------------------------------------------------------
 
 function pollInstanceStatus(id) {
   let attempts = 0;

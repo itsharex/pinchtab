@@ -1,4 +1,4 @@
-  /* Live view */
+  
   .live-view { height: calc(100vh - 60px); display: flex; flex-direction: column; }
   .live-toolbar { padding: 12px 24px; border-bottom: 1px solid var(--border); }
   .screencast-grid {

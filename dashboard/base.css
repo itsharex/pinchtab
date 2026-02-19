@@ -1,9 +1,9 @@
 :root {
-    /* Brand */
+    
     --primary: #f5c542;
     --primary-dark: #0a0a0a;
 
-    /* Surfaces */
+    
     --bg: #0a0a0a;
     --bg-raised: #111;
     --bg-card: #151515;
@@ -11,12 +11,12 @@
     --bg-hover: #1a1a1a;
     --bg-subtle: #0d0d0d;
 
-    /* Borders */
+    
     --border: #222;
     --border-light: #333;
     --border-active: #444;
 
-    /* Text */
+    
     --text: #e0e0e0;
     --text-muted: #888;
     --text-dim: #666;
@@ -24,7 +24,7 @@
     --text-subtle: #aaa;
     --text-bright: #ccc;
 
-    /* Status */
+    
     --success: #4ade80;
     --success-bg: #064e3b;
     --warning: #fbbf24;
@@ -33,7 +33,7 @@
     --danger-bg: #3a1a1a;
     --inactive-bg: #1c1917;
 
-    /* Typography */
+    
     --font: 'SF Mono', 'Fira Code', monospace;
   }
 
@@ -69,7 +69,7 @@
 
   .container { display: flex; height: calc(100vh - 60px); }
 
-  /* View toggle */
+  
   .view-toggle { margin-left: auto; display: flex; gap: 4px; }
   .view-btn {
     background: var(--bg-hover);
@@ -91,7 +91,7 @@
   }
   .empty-state .crab { font-size: 48px; margin-bottom: 12px; }
 
-  /* Profile management modal */
+  
   .modal-overlay {
     display: none;
     position: fixed;
@@ -136,7 +136,7 @@
   .modal button.secondary { background: var(--border-light); color: var(--text); }
   .modal button.danger { background: var(--danger); color: #fff; }
 
-  /* Loading spinner */
+  
   .spinner {
     display: inline-block;
     width: 16px; height: 16px;

@@ -1,13 +1,8 @@
 'use strict';
 
-// ---------------------------------------------------------------------------
-// Settings — screencast params, stealth, browser toggles
-// ---------------------------------------------------------------------------
-
 const screencastSettings = { fps: 1, quality: 30, maxWidth: 800 };
 
 async function loadSettings() {
-  // Load stealth status
   try {
     const res = await fetch('/stealth/status');
     const data = await res.json();
@@ -15,7 +10,6 @@ async function loadSettings() {
     updateStealthInfo(data);
   } catch (e) {}
 
-  // Load server health info
   try {
     const res = await fetch('/health');
     const data = await res.json();
@@ -30,13 +24,11 @@ async function loadSettings() {
     document.getElementById('server-info').textContent = 'Failed to load server info';
   }
 
-  // Restore saved settings from localStorage
   const saved = JSON.parse(localStorage.getItem('pinchtab-settings') || '{}');
   if (saved.fps) { document.getElementById('set-fps').value = saved.fps; document.getElementById('fps-val').textContent = saved.fps + ' fps'; screencastSettings.fps = saved.fps; }
   if (saved.quality) { document.getElementById('set-quality').value = saved.quality; document.getElementById('quality-val').textContent = saved.quality + '%'; screencastSettings.quality = saved.quality; }
   if (saved.maxWidth) { document.getElementById('set-maxwidth').value = saved.maxWidth; screencastSettings.maxWidth = saved.maxWidth; }
 
-  // Toggle labels
   document.querySelectorAll('.toggle input').forEach(cb => {
     cb.addEventListener('change', () => {
       cb.parentElement.querySelector('.toggle-label').textContent = cb.checked ? 'On' : 'Off';

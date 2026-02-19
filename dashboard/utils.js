@@ -1,9 +1,5 @@
 'use strict';
 
-// ---------------------------------------------------------------------------
-// Shared utilities
-// ---------------------------------------------------------------------------
-
 function esc(s) {
   if (!s) return '';
   const d = document.createElement('div');
@@ -53,7 +49,6 @@ function closeModal() {
   document.getElementById('modal').classList.remove('open');
 }
 
-// Reusable modal — pass title + HTML content + optional footer buttons
 function showModal(title, bodyHtml, buttons) {
   const modal = document.getElementById('modal');
   document.getElementById('modal-title').textContent = title;
@@ -67,7 +62,6 @@ function showModal(title, bodyHtml, buttons) {
   modal.classList.add('open');
 }
 
-// Fetch with error handling — returns {ok, data} or shows alert on failure
 async function apiFetch(url, options) {
   try {
     const res = await fetch(url, options);

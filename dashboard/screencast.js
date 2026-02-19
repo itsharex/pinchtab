@@ -1,9 +1,5 @@
 'use strict';
 
-// ---------------------------------------------------------------------------
-// Screencast — WebSocket JPEG streaming from Chrome tabs
-// ---------------------------------------------------------------------------
-
 const screencastSockets = {};
 
 function getScreencastParams() {
@@ -133,7 +129,6 @@ async function viewInstanceLive(id, port) {
   }
 }
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
+  window.addEventListener('beforeunload', () => {
   Object.values(screencastSockets).forEach(s => s.close());
 });

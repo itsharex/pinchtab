@@ -1,9 +1,5 @@
 'use strict';
 
-// ---------------------------------------------------------------------------
-// Agent tracking — SSE feed + agent cards
-// ---------------------------------------------------------------------------
-
 const MAX_EVENTS = 500;
 const events = [];
 const agents = {};
@@ -118,7 +114,6 @@ function selectAgent(id) {
   renderFeed();
 }
 
-// Filter buttons
 document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));

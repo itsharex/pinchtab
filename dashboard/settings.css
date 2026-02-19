@@ -1,4 +1,4 @@
-  /* Settings view */
+  
   .settings-view { height: calc(100vh - 60px); overflow-y: auto; }
   .settings-container { max-width: 600px; margin: 0 auto; padding: 24px; }
   .settings-title { color: var(--primary); font-size: 18px; margin-bottom: 24px; }
