@@ -199,11 +199,17 @@ func (d *Dashboard) handleSSE(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "event: init\ndata: %s\n\n", data)
 	flusher.Flush()
 
+	keepalive := time.NewTicker(30 * time.Second)
+	defer keepalive.Stop()
+
 	for {
 		select {
 		case evt := <-ch:
 			data, _ := json.Marshal(evt)
 			_, _ = fmt.Fprintf(w, "event: action\ndata: %s\n\n", data)
+			flusher.Flush()
+		case <-keepalive.C:
+			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
 			flusher.Flush()
 		case <-r.Context().Done():
 			return

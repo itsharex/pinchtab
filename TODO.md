@@ -39,7 +39,7 @@ P2 (K11 file path, blockImages on CreateTab) — all resolved.
 - [ ] **installStableBinary streaming** — Use `io.Copy` with file streams instead of reading entire binary into memory.
 - [ ] **Interfaces for ProfileManager/Orchestrator** — Add interfaces for unit testability (like `BridgeAPI`).
 - [ ] **proxy_ws.go proper HTTP** — Replace raw `backend.Write` of HTTP headers with proper request construction.
-- [ ] **Dashboard SSE keepalive** — Add heartbeat/ping to SSE connections to detect silent disconnects.
+- [x] **Dashboard SSE keepalive** — 30s keepalive comments on SSE connections.
 
 ### Minor
 - [ ] **humanType global rand** — Accept `*rand.Rand` for reproducible tests.
