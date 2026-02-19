@@ -52,9 +52,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if token != "" {
+		if cfg.Token != "" {
 			auth := r.Header.Get("Authorization")
-			if auth != "Bearer "+token {
+			if auth != "Bearer "+cfg.Token {
 				jsonErr(w, 401, fmt.Errorf("unauthorized"))
 				return
 			}

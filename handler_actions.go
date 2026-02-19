@@ -45,7 +45,7 @@ func (b *Bridge) initActionRegistry() {
 				return nil, err
 			}
 			if req.WaitNav {
-				_ = chromedp.Run(ctx, chromedp.Sleep(waitNavDelay))
+				_ = chromedp.Run(ctx, chromedp.Sleep(cfg.WaitNavDelay))
 			}
 			return map[string]any{"clicked": true}, nil
 		},
@@ -199,7 +199,7 @@ func (b *Bridge) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	tCtx, tCancel := context.WithTimeout(ctx, cfg.ActionTimeout)
 	defer tCancel()
 	go cancelOnClientDone(r.Context(), tCancel)
 
@@ -301,7 +301,7 @@ func (b *Bridge) handleActions(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+		tCtx, tCancel := context.WithTimeout(ctx, cfg.ActionTimeout)
 
 		if action.Ref != "" && action.NodeID == 0 && action.Selector == "" {
 			cache := b.GetRefCache(resolvedTabID)

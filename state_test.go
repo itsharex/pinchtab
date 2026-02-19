@@ -8,19 +8,19 @@ import (
 )
 
 func TestMarkCleanExit_NoFile(t *testing.T) {
-	origProfileDir := profileDir
-	profileDir = t.TempDir()
-	defer func() { profileDir = origProfileDir }()
+	origProfileDir := cfg.ProfileDir
+	cfg.ProfileDir = t.TempDir()
+	defer func() { cfg.ProfileDir = origProfileDir }()
 
 	markCleanExit()
 }
 
 func TestMarkCleanExit_PatchesCrashed(t *testing.T) {
-	origProfileDir := profileDir
-	profileDir = t.TempDir()
-	defer func() { profileDir = origProfileDir }()
+	origProfileDir := cfg.ProfileDir
+	cfg.ProfileDir = t.TempDir()
+	defer func() { cfg.ProfileDir = origProfileDir }()
 
-	prefsDir := filepath.Join(profileDir, "Default")
+	prefsDir := filepath.Join(cfg.ProfileDir, "Default")
 	_ = os.MkdirAll(prefsDir, 0755)
 
 	prefsPath := filepath.Join(prefsDir, "Preferences")
@@ -40,11 +40,11 @@ func TestMarkCleanExit_PatchesCrashed(t *testing.T) {
 }
 
 func TestMarkCleanExit_NoPatch(t *testing.T) {
-	origProfileDir := profileDir
-	profileDir = t.TempDir()
-	defer func() { profileDir = origProfileDir }()
+	origProfileDir := cfg.ProfileDir
+	cfg.ProfileDir = t.TempDir()
+	defer func() { cfg.ProfileDir = origProfileDir }()
 
-	prefsDir := filepath.Join(profileDir, "Default")
+	prefsDir := filepath.Join(cfg.ProfileDir, "Default")
 	_ = os.MkdirAll(prefsDir, 0755)
 
 	prefsPath := filepath.Join(prefsDir, "Preferences")
@@ -93,9 +93,9 @@ func TestSaveState_NoBrowser(t *testing.T) {
 }
 
 func TestRestoreState_NoFile(t *testing.T) {
-	origStateDir := stateDir
-	stateDir = t.TempDir()
-	defer func() { stateDir = origStateDir }()
+	origStateDir := cfg.StateDir
+	cfg.StateDir = t.TempDir()
+	defer func() { cfg.StateDir = origStateDir }()
 
 	b := newTestBridge()
 
@@ -103,13 +103,13 @@ func TestRestoreState_NoFile(t *testing.T) {
 }
 
 func TestRestoreState_EmptyTabs(t *testing.T) {
-	origStateDir := stateDir
-	stateDir = t.TempDir()
-	defer func() { stateDir = origStateDir }()
+	origStateDir := cfg.StateDir
+	cfg.StateDir = t.TempDir()
+	defer func() { cfg.StateDir = origStateDir }()
 
 	state := SessionState{Tabs: []TabState{}, SavedAt: "2026-02-17T07:00:00Z"}
 	data, _ := json.Marshal(state)
-	_ = os.WriteFile(filepath.Join(stateDir, "sessions.json"), data, 0644)
+	_ = os.WriteFile(filepath.Join(cfg.StateDir, "sessions.json"), data, 0644)
 
 	b := newTestBridge()
 
@@ -117,11 +117,11 @@ func TestRestoreState_EmptyTabs(t *testing.T) {
 }
 
 func TestRestoreState_InvalidJSON(t *testing.T) {
-	origStateDir := stateDir
-	stateDir = t.TempDir()
-	defer func() { stateDir = origStateDir }()
+	origStateDir := cfg.StateDir
+	cfg.StateDir = t.TempDir()
+	defer func() { cfg.StateDir = origStateDir }()
 
-	_ = os.WriteFile(filepath.Join(stateDir, "sessions.json"), []byte("{broken"), 0644)
+	_ = os.WriteFile(filepath.Join(cfg.StateDir, "sessions.json"), []byte("{broken"), 0644)
 
 	b := newTestBridge()
 
@@ -130,9 +130,9 @@ func TestRestoreState_InvalidJSON(t *testing.T) {
 
 func TestWasUncleanExit_Crashed(t *testing.T) {
 	tmp := t.TempDir()
-	origProfile := profileDir
-	profileDir = tmp
-	defer func() { profileDir = origProfile }()
+	origProfile := cfg.ProfileDir
+	cfg.ProfileDir = tmp
+	defer func() { cfg.ProfileDir = origProfile }()
 
 	defaultDir := filepath.Join(tmp, "Default")
 	_ = os.MkdirAll(defaultDir, 0755)
@@ -146,9 +146,9 @@ func TestWasUncleanExit_Crashed(t *testing.T) {
 
 func TestWasUncleanExit_Normal(t *testing.T) {
 	tmp := t.TempDir()
-	origProfile := profileDir
-	profileDir = tmp
-	defer func() { profileDir = origProfile }()
+	origProfile := cfg.ProfileDir
+	cfg.ProfileDir = tmp
+	defer func() { cfg.ProfileDir = origProfile }()
 
 	defaultDir := filepath.Join(tmp, "Default")
 	_ = os.MkdirAll(defaultDir, 0755)
@@ -162,9 +162,9 @@ func TestWasUncleanExit_Normal(t *testing.T) {
 
 func TestWasUncleanExit_NoFile(t *testing.T) {
 	tmp := t.TempDir()
-	origProfile := profileDir
-	profileDir = tmp
-	defer func() { profileDir = origProfile }()
+	origProfile := cfg.ProfileDir
+	cfg.ProfileDir = tmp
+	defer func() { cfg.ProfileDir = origProfile }()
 
 	if wasUncleanExit() {
 		t.Error("expected wasUncleanExit to return false when no Preferences file exists")
@@ -173,9 +173,9 @@ func TestWasUncleanExit_NoFile(t *testing.T) {
 
 func TestClearChromeSessions(t *testing.T) {
 	tmp := t.TempDir()
-	origProfile := profileDir
-	profileDir = tmp
-	defer func() { profileDir = origProfile }()
+	origProfile := cfg.ProfileDir
+	cfg.ProfileDir = tmp
+	defer func() { cfg.ProfileDir = origProfile }()
 
 	sessionsDir := filepath.Join(tmp, "Default", "Sessions")
 	_ = os.MkdirAll(sessionsDir, 0755)
@@ -190,9 +190,9 @@ func TestClearChromeSessions(t *testing.T) {
 
 func TestClearChromeSessions_NoDir(t *testing.T) {
 	tmp := t.TempDir()
-	origProfile := profileDir
-	profileDir = tmp
-	defer func() { profileDir = origProfile }()
+	origProfile := cfg.ProfileDir
+	cfg.ProfileDir = tmp
+	defer func() { cfg.ProfileDir = origProfile }()
 
 	clearChromeSessions()
 }

@@ -31,7 +31,7 @@ type SessionState struct {
 }
 
 func markCleanExit() {
-	prefsPath := filepath.Join(profileDir, "Default", "Preferences")
+	prefsPath := filepath.Join(cfg.ProfileDir, "Default", "Preferences")
 	data, err := os.ReadFile(prefsPath)
 	if err != nil {
 		return
@@ -45,7 +45,7 @@ func markCleanExit() {
 }
 
 func wasUncleanExit() bool {
-	prefsPath := filepath.Join(profileDir, "Default", "Preferences")
+	prefsPath := filepath.Join(cfg.ProfileDir, "Default", "Preferences")
 	data, err := os.ReadFile(prefsPath)
 	if err != nil {
 		return false
@@ -55,7 +55,7 @@ func wasUncleanExit() bool {
 }
 
 func clearChromeSessions() {
-	sessionsDir := filepath.Join(profileDir, "Default", "Sessions")
+	sessionsDir := filepath.Join(cfg.ProfileDir, "Default", "Sessions")
 	if err := os.RemoveAll(sessionsDir); err != nil {
 		slog.Warn("failed to clear Chrome sessions dir", "err", err)
 	} else {
@@ -91,11 +91,11 @@ func (b *Bridge) SaveState() {
 		slog.Error("save state: marshal", "err", err)
 		return
 	}
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.StateDir, 0755); err != nil {
 		slog.Error("save state: mkdir", "err", err)
 		return
 	}
-	path := filepath.Join(stateDir, "sessions.json")
+	path := filepath.Join(cfg.StateDir, "sessions.json")
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		slog.Error("save state: write", "err", err)
 	} else {
@@ -104,7 +104,7 @@ func (b *Bridge) SaveState() {
 }
 
 func (b *Bridge) RestoreState() {
-	path := filepath.Join(stateDir, "sessions.json")
+	path := filepath.Join(cfg.StateDir, "sessions.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return

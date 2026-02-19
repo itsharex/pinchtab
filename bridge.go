@@ -87,7 +87,7 @@ func (b *Bridge) TabContext(tabID string) (context.Context, string, error) {
 	}
 
 	b.injectStealth(ctx)
-	if noAnimations {
+	if cfg.NoAnimations {
 		b.injectNoAnimations(ctx)
 	}
 
@@ -157,13 +157,13 @@ func (b *Bridge) CreateTab(url string) (string, context.Context, context.CancelF
 
 	b.injectStealth(ctx)
 
-	if noAnimations {
+	if cfg.NoAnimations {
 		b.injectNoAnimations(ctx)
 	}
 
-	if blockMedia {
+	if cfg.BlockMedia {
 		_ = setResourceBlocking(ctx, mediaBlockPatterns)
-	} else if blockImages {
+	} else if cfg.BlockImages {
 		_ = setResourceBlocking(ctx, imageBlockPatterns)
 	}
 

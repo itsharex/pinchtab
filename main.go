@@ -52,7 +52,7 @@ func main() {
 		return
 	}
 
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.StateDir, 0755); err != nil {
 		slog.Error("cannot create state dir", "err", err)
 		os.Exit(1)
 	}
@@ -61,7 +61,7 @@ func main() {
 	defer allocCancel()
 
 	stealthSeed := rand.Intn(1000000000)
-	seededScript := fmt.Sprintf("var __pinchtab_seed = %d;\nvar __pinchtab_stealth_level = %q;\n", stealthSeed, stealthLevel) + stealthScript
+	seededScript := fmt.Sprintf("var __pinchtab_seed = %d;\nvar __pinchtab_stealth_level = %q;\n", stealthSeed, cfg.StealthLevel) + stealthScript
 	bridge.stealthScript = seededScript
 	bridge.allocCtx = allocCtx
 
@@ -82,7 +82,7 @@ func main() {
 			slog.Error("Chrome failed to start after retry",
 				"err", err,
 				"hint", "try BRIDGE_NO_RESTORE=true or delete your profile directory",
-				"profile", profileDir,
+				"profile", cfg.ProfileDir,
 			)
 			allocCancel()
 			os.Exit(1)
@@ -99,7 +99,7 @@ func main() {
 	bridge.initActionRegistry()
 	bridge.locks = newLockManager()
 
-	profilesDir := filepath.Join(filepath.Dir(profileDir), "profiles")
+	profilesDir := filepath.Join(filepath.Dir(cfg.ProfileDir), "profiles")
 	profMgr := NewProfileManager(profilesDir)
 	dashboard := NewDashboard(nil)
 	orchestrator := NewOrchestrator(profilesDir)
@@ -108,20 +108,20 @@ func main() {
 	bridge.tabs[string(initTargetID)] = &TabEntry{ctx: browserCtx}
 	slog.Info("initial tab", "id", string(initTargetID))
 
-	if !headless {
+	if !cfg.Headless {
 		go func() {
 			time.Sleep(200 * time.Millisecond)
-			_ = chromedp.Run(browserCtx, chromedp.Navigate("http://localhost:"+port+"/welcome"))
+			_ = chromedp.Run(browserCtx, chromedp.Navigate("http://localhost:"+cfg.Port+"/welcome"))
 		}()
 	}
 
-	if !noRestore {
+	if !cfg.NoRestore {
 		go bridge.RestoreState()
 	}
 
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	defer cleanupCancel()
-	go bridge.CleanStaleTabs(cleanupCtx, 30*actionTimeout)
+	go bridge.CleanStaleTabs(cleanupCtx, 30*cfg.ActionTimeout)
 
 	mux := http.NewServeMux()
 	registerRoutes(mux, &bridge, profMgr, dashboard, orchestrator)
@@ -140,7 +140,7 @@ func main() {
 		}
 	}
 
-	srv := &http.Server{Addr: ":" + port, Handler: dashboard.TrackingMiddleware(
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: dashboard.TrackingMiddleware(
 		[]EventObserver{profileObserver},
 		loggingMiddleware(corsMiddleware(authMiddleware(mux))),
 	)}
@@ -154,7 +154,7 @@ func main() {
 			bridge.SaveState()
 			markCleanExit()
 
-			shutdownCtx, shutdownDone := context.WithTimeout(context.Background(), shutdownTimeout)
+			shutdownCtx, shutdownDone := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 			defer shutdownDone()
 			if err := srv.Shutdown(shutdownCtx); err != nil {
 				slog.Error("shutdown http", "err", err)
@@ -175,8 +175,8 @@ func main() {
 		allocCancel()
 	})
 
-	slog.Info("🦀 PINCH! PINCH!", "port", port, "cdp", cdpURL, "stealth", stealthLevel)
-	if token != "" {
+	slog.Info("🦀 PINCH! PINCH!", "port", cfg.Port, "cdp", cfg.CdpURL, "stealth", cfg.StealthLevel)
+	if cfg.Token != "" {
 		slog.Info("auth enabled")
 	} else {
 		slog.Info("auth disabled (set BRIDGE_TOKEN to enable)")
@@ -192,19 +192,19 @@ func main() {
 
 // setupAllocator creates the Chrome allocator context (remote or local).
 func setupAllocator() (context.Context, context.CancelFunc, []chromedp.ExecAllocatorOption) {
-	if cdpURL != "" {
-		slog.Info("connecting to Chrome", "url", cdpURL)
-		ctx, cancel := chromedp.NewRemoteAllocator(context.Background(), cdpURL)
+	if cfg.CdpURL != "" {
+		slog.Info("connecting to Chrome", "url", cfg.CdpURL)
+		ctx, cancel := chromedp.NewRemoteAllocator(context.Background(), cfg.CdpURL)
 		return ctx, cancel, nil
 	}
 
-	if err := os.MkdirAll(profileDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.ProfileDir, 0755); err != nil {
 		slog.Error("cannot create profile dir", "err", err)
 		os.Exit(1)
 	}
 
 	for _, lockName := range []string{"SingletonLock", "SingletonSocket", "SingletonCookie"} {
-		lockPath := fmt.Sprintf("%s/%s", profileDir, lockName)
+		lockPath := fmt.Sprintf("%s/%s", cfg.ProfileDir, lockName)
 		if err := os.Remove(lockPath); err == nil {
 			slog.Warn("removed stale lock", "file", lockName)
 		}
@@ -215,7 +215,7 @@ func setupAllocator() (context.Context, context.CancelFunc, []chromedp.ExecAlloc
 		clearChromeSessions()
 	}
 
-	slog.Info("launching Chrome", "profile", profileDir, "headless", headless)
+	slog.Info("launching Chrome", "profile", cfg.ProfileDir, "headless", cfg.Headless)
 
 	opts := buildChromeOpts()
 
@@ -227,7 +227,7 @@ func setupAllocator() (context.Context, context.CancelFunc, []chromedp.ExecAlloc
 // buildChromeOpts assembles the Chrome flags for local execution.
 func buildChromeOpts() []chromedp.ExecAllocatorOption {
 	opts := []chromedp.ExecAllocatorOption{
-		chromedp.UserDataDir(profileDir),
+		chromedp.UserDataDir(cfg.ProfileDir),
 		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
 
@@ -258,11 +258,11 @@ func buildChromeOpts() []chromedp.ExecAllocatorOption {
 		chromedp.WindowSize(1366, 768),
 	}
 
-	if chromeBinary != "" {
-		opts = append(opts, chromedp.ExecPath(chromeBinary))
+	if cfg.ChromeBinary != "" {
+		opts = append(opts, chromedp.ExecPath(cfg.ChromeBinary))
 	}
-	if chromeExtraFlags != "" {
-		for _, f := range strings.Fields(chromeExtraFlags) {
+	if cfg.ChromeExtraFlags != "" {
+		for _, f := range strings.Fields(cfg.ChromeExtraFlags) {
 			if k, v, ok := strings.Cut(f, "="); ok {
 				opts = append(opts, chromedp.Flag(strings.TrimLeft(k, "-"), v))
 			} else {
@@ -271,7 +271,7 @@ func buildChromeOpts() []chromedp.ExecAllocatorOption {
 		}
 	}
 
-	if headless {
+	if cfg.Headless {
 		opts = append(opts, chromedp.Headless)
 	} else {
 		opts = append(opts, chromedp.Flag("headless", false))
@@ -312,17 +312,17 @@ func startChrome(seededScript string) (context.Context, context.CancelFunc, erro
 
 // applyTimezone sets the browser timezone override if configured.
 func applyTimezone(browserCtx context.Context) {
-	if timezone == "" {
+	if cfg.Timezone == "" {
 		return
 	}
 	if err := chromedp.Run(browserCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			return emulation.SetTimezoneOverride(timezone).Do(ctx)
+			return emulation.SetTimezoneOverride(cfg.Timezone).Do(ctx)
 		}),
 	); err != nil {
-		slog.Warn("timezone override failed", "tz", timezone, "err", err)
+		slog.Warn("timezone override failed", "tz", cfg.Timezone, "err", err)
 	} else {
-		slog.Info("timezone override", "tz", timezone)
+		slog.Info("timezone override", "tz", cfg.Timezone)
 	}
 }
 
@@ -376,7 +376,7 @@ func setupSignalHandler(shutdownFn func(), forceFn func()) {
 func runStartupHealthCheck() {
 	time.Sleep(500 * time.Millisecond)
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/health", port))
+	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/health", cfg.Port))
 	if err != nil {
 		slog.Error("startup health check failed",
 			"err", err,

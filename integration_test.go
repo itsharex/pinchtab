@@ -215,7 +215,7 @@ func TestWebGLVendorSpoofed(t *testing.T) {
 	}
 
 	if !result.Available {
-		t.Skip("WebGL not available in headless mode — skipping vendor check")
+		t.Skip("WebGL not available in cfg.Headless mode — skipping vendor check")
 	}
 
 	if result.Vendor != "Intel Inc." {

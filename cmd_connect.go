@@ -48,7 +48,7 @@ func handleConnectCommand() {
 		os.Exit(2)
 	}
 	if dashboardURL == "" {
-		dashboardURL = "http://localhost:" + port
+		dashboardURL = "http://localhost:" + cfg.Port
 	}
 
 	reqURL := stringsTrimRightSlash(dashboardURL) + "/profiles/" + url.PathEscape(profile) + "/instance"

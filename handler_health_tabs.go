@@ -8,10 +8,10 @@ import (
 func (b *Bridge) handleHealth(w http.ResponseWriter, r *http.Request) {
 	targets, err := b.ListTargets()
 	if err != nil {
-		jsonResp(w, 200, map[string]any{"status": "disconnected", "error": err.Error(), "cdp": cdpURL})
+		jsonResp(w, 200, map[string]any{"status": "disconnected", "error": err.Error(), "cdp": cfg.CdpURL})
 		return
 	}
-	jsonResp(w, 200, map[string]any{"status": "ok", "tabs": len(targets), "cdp": cdpURL})
+	jsonResp(w, 200, map[string]any{"status": "ok", "tabs": len(targets), "cdp": cfg.CdpURL})
 }
 
 func (b *Bridge) handleTabs(w http.ResponseWriter, r *http.Request) {

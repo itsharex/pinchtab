@@ -158,11 +158,11 @@ func TestLoadConfig_TimeoutFromFile(t *testing.T) {
 	t.Setenv("BRIDGE_TIMEOUT", "")
 	t.Setenv("BRIDGE_NAV_TIMEOUT", "")
 
-	origAction := actionTimeout
-	origNav := navigateTimeout
+	origAction := cfg.ActionTimeout
+	origNav := cfg.NavigateTimeout
 	defer func() {
-		actionTimeout = origAction
-		navigateTimeout = origNav
+		cfg.ActionTimeout = origAction
+		cfg.NavigateTimeout = origNav
 	}()
 
 	loadConfig()
@@ -172,7 +172,7 @@ func TestLoadConfig_TimeoutFromFile(t *testing.T) {
 func TestLoadConfig_ConfigFileAllFields(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, "config.json")
-	cfg := `{
+	jsonData := `{
 		"port": "9999",
 		"headless": true,
 		"token": "test-token",
@@ -180,19 +180,19 @@ func TestLoadConfig_ConfigFileAllFields(t *testing.T) {
 		"timeoutSec": 20,
 		"navigateSec": 45
 	}`
-	_ = os.WriteFile(cfgPath, []byte(cfg), 0644)
+	_ = os.WriteFile(cfgPath, []byte(jsonData), 0644)
 
-	origPort := port
-	origNoRestore := noRestore
-	origToken := token
-	origAction := actionTimeout
-	origNav := navigateTimeout
+	origPort := cfg.Port
+	origNoRestore := cfg.NoRestore
+	origToken := cfg.Token
+	origAction := cfg.ActionTimeout
+	origNav := cfg.NavigateTimeout
 	defer func() {
-		port = origPort
-		noRestore = origNoRestore
-		token = origToken
-		actionTimeout = origAction
-		navigateTimeout = origNav
+		cfg.Port = origPort
+		cfg.NoRestore = origNoRestore
+		cfg.Token = origToken
+		cfg.ActionTimeout = origAction
+		cfg.NavigateTimeout = origNav
 	}()
 
 	t.Setenv("BRIDGE_CONFIG", cfgPath)
@@ -203,20 +203,20 @@ func TestLoadConfig_ConfigFileAllFields(t *testing.T) {
 	t.Setenv("BRIDGE_NAV_TIMEOUT", "")
 	loadConfig()
 
-	if port != "9999" {
-		t.Errorf("expected port 9999, got %q", port)
+	if cfg.Port != "9999" {
+		t.Errorf("expected port 9999, got %q", cfg.Port)
 	}
-	if !noRestore {
+	if !cfg.NoRestore {
 		t.Error("expected noRestore true from config")
 	}
-	if token != "test-token" {
-		t.Errorf("expected test-token, got %q", token)
+	if cfg.Token != "test-token" {
+		t.Errorf("expected test-token, got %q", cfg.Token)
 	}
-	if actionTimeout != 20*time.Second {
-		t.Errorf("expected 20s timeout, got %v", actionTimeout)
+	if cfg.ActionTimeout != 20*time.Second {
+		t.Errorf("expected 20s timeout, got %v", cfg.ActionTimeout)
 	}
-	if navigateTimeout != 45*time.Second {
-		t.Errorf("expected 45s navTimeout, got %v", navigateTimeout)
+	if cfg.NavigateTimeout != 45*time.Second {
+		t.Errorf("expected 45s navTimeout, got %v", cfg.NavigateTimeout)
 	}
 }
 

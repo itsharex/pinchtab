@@ -26,11 +26,11 @@ func (b *Bridge) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	tCtx, tCancel := context.WithTimeout(ctx, cfg.ActionTimeout)
 	defer tCancel()
 	go cancelOnClientDone(r.Context(), tCancel)
 
-	if reqNoAnim && !noAnimations {
+	if reqNoAnim && !cfg.NoAnimations {
 		disableAnimationsOnce(tCtx)
 	}
 
@@ -57,7 +57,7 @@ func (b *Bridge) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if output == "file" {
-		screenshotDir := filepath.Join(stateDir, "screenshots")
+		screenshotDir := filepath.Join(cfg.StateDir, "screenshots")
 		if err := os.MkdirAll(screenshotDir, 0755); err != nil {
 			jsonErr(w, 500, fmt.Errorf("create screenshot dir: %w", err))
 			return
@@ -105,7 +105,7 @@ func (b *Bridge) handleText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	tCtx, tCancel := context.WithTimeout(ctx, cfg.ActionTimeout)
 	defer tCancel()
 	go cancelOnClientDone(r.Context(), tCancel)
 

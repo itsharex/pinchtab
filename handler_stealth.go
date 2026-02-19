@@ -50,7 +50,7 @@ func (b *Bridge) handleStealthStatus(w http.ResponseWriter, r *http.Request) {
 		features := map[string]bool{
 			"automation_controlled": !result.WebDriver,
 			"webdriver_hidden":      !result.WebDriver,
-			"chrome_headless_new":   headless,
+			"chrome_headless_new":   cfg.Headless,
 			"user_agent_override":   result.UserAgent != "",
 			"webgl_vendor_override": true,
 			"plugins_spoofed":       result.Plugins > 0,
@@ -74,7 +74,7 @@ func staticStealthFeatures() map[string]bool {
 	return map[string]bool{
 		"automation_controlled": true,
 		"webdriver_hidden":      true,
-		"chrome_headless_new":   headless,
+		"chrome_headless_new":   cfg.Headless,
 		"user_agent_override":   true,
 		"webgl_vendor_override": true,
 		"plugins_spoofed":       true,
@@ -139,9 +139,9 @@ func (b *Bridge) sendStealthResponse(w http.ResponseWriter, features map[string]
 		"score":           stealthScore,
 		"features":        features,
 		"chrome_flags":    chromeFlags,
-		"headless_mode":   headless,
+		"headless_mode":   cfg.Headless,
 		"user_agent":      userAgent,
-		"profile_path":    profileDir,
+		"profile_path":    cfg.ProfileDir,
 		"recommendations": getStealthRecommendations(features),
 	})
 }
@@ -159,7 +159,7 @@ func getStealthRecommendations(features map[string]bool) []string {
 		recommendations = append(recommendations, "Block WebRTC to prevent IP leaks")
 	}
 	if !features["timezone_spoofed"] {
-		recommendations = append(recommendations, "Spoof timezone to match target locale")
+		recommendations = append(recommendations, "Spoof cfg.Timezone to match target locale")
 	}
 	if !features["canvas_noise"] {
 		recommendations = append(recommendations, "Add canvas fingerprint noise")
@@ -270,19 +270,19 @@ func generateFingerprint(req fingerprintRequest) fingerprint {
 	osConfigs := map[string]map[string]fingerprint{
 		"windows": {
 			"chrome": {
-				UserAgent: fmt.Sprintf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36", chromeVersion),
+				UserAgent: fmt.Sprintf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36", cfg.ChromeVersion),
 				Platform:  "Win32",
 				Vendor:    "Google Inc.",
 			},
 			"edge": {
-				UserAgent: fmt.Sprintf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36 Edg/%s", chromeVersion, chromeVersion),
+				UserAgent: fmt.Sprintf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36 Edg/%s", cfg.ChromeVersion, cfg.ChromeVersion),
 				Platform:  "Win32",
 				Vendor:    "Google Inc.",
 			},
 		},
 		"mac": {
 			"chrome": {
-				UserAgent: fmt.Sprintf("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36", chromeVersion),
+				UserAgent: fmt.Sprintf("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36", cfg.ChromeVersion),
 				Platform:  "MacIntel",
 				Vendor:    "Google Inc.",
 			},

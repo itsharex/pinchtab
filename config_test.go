@@ -61,7 +61,7 @@ func TestMaskToken(t *testing.T) {
 		{"short", "***"},
 		{"12345678", "***"},
 		{"123456789", "1234...6789"},
-		{"my-super-secret-token", "my-s...oken"},
+		{"my-super-secret-cfg.Token", "my-s...oken"},
 	}
 	for _, tt := range tests {
 		if got := maskToken(tt.input); got != tt.want {
@@ -71,28 +71,28 @@ func TestMaskToken(t *testing.T) {
 }
 
 func TestDefaultConfig(t *testing.T) {
-	cfg := defaultConfig()
-	if cfg.Port != "9867" {
-		t.Errorf("default port = %q, want 9867", cfg.Port)
+	fc := defaultFileConfig()
+	if fc.Port != "9867" {
+		t.Errorf("default Port = %q, want 9867", fc.Port)
 	}
-	if !cfg.Headless {
+	if fc.Headless == nil || !*fc.Headless {
 		t.Error("default config should be headless")
 	}
-	if cfg.NoRestore {
-		t.Error("default config should not have noRestore")
+	if fc.NoRestore {
+		t.Error("default config should not have NoRestore")
 	}
-	if cfg.TimeoutSec != 15 {
-		t.Errorf("default timeout = %d, want 15", cfg.TimeoutSec)
+	if fc.TimeoutSec != 15 {
+		t.Errorf("default timeout = %d, want 15", fc.TimeoutSec)
 	}
-	if cfg.NavigateSec != 30 {
-		t.Errorf("default navigate timeout = %d, want 30", cfg.NavigateSec)
+	if fc.NavigateSec != 30 {
+		t.Errorf("default navigate timeout = %d, want 30", fc.NavigateSec)
 	}
 }
 
 func TestLoadConfig_FromFile(t *testing.T) {
 
-	origPort := port
-	defer func() { port = origPort }()
+	origPort := cfg.Port
+	defer func() { cfg.Port = origPort }()
 
 	dir := t.TempDir()
 	configPath := dir + "/config.json"
@@ -102,14 +102,14 @@ func TestLoadConfig_FromFile(t *testing.T) {
 	t.Setenv("BRIDGE_CONFIG", configPath)
 
 	loadConfig()
-	if port != "7777" {
-		t.Errorf("loadConfig from file: port = %q, want 7777", port)
+	if cfg.Port != "7777" {
+		t.Errorf("loadConfig from file: port = %q, want 7777", cfg.Port)
 	}
 }
 
 func TestLoadConfig_EnvOverridesFile(t *testing.T) {
-	origPort := port
-	defer func() { port = origPort }()
+	origPort := cfg.Port
+	defer func() { cfg.Port = origPort }()
 
 	dir := t.TempDir()
 	configPath := dir + "/config.json"
@@ -118,11 +118,11 @@ func TestLoadConfig_EnvOverridesFile(t *testing.T) {
 	t.Setenv("BRIDGE_CONFIG", configPath)
 	t.Setenv("BRIDGE_PORT", "8888")
 
-	port = "8888"
+	cfg.Port = "8888"
 	loadConfig()
 
-	if port != "8888" {
-		t.Errorf("env should override file: port = %q, want 8888", port)
+	if cfg.Port != "8888" {
+		t.Errorf("env should override file: port = %q, want 8888", cfg.Port)
 	}
 }
 
@@ -131,15 +131,15 @@ func TestLoadConfig_InvalidJSON(t *testing.T) {
 	configPath := dir + "/config.json"
 	_ = os.WriteFile(configPath, []byte("{broken json!!!"), 0644)
 
-	origPort := port
-	defer func() { port = origPort }()
+	origPort := cfg.Port
+	defer func() { cfg.Port = origPort }()
 
 	t.Setenv("BRIDGE_CONFIG", configPath)
 	t.Setenv("BRIDGE_PORT", "")
-	port = "9867"
+	cfg.Port = "9867"
 	loadConfig()
-	if port != "9867" {
-		t.Errorf("invalid config should not change port, got %q", port)
+	if cfg.Port != "9867" {
+		t.Errorf("invalid config should not change port, got %q", cfg.Port)
 	}
 }
 

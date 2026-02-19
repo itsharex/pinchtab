@@ -41,9 +41,9 @@ func TestJsonErr(t *testing.T) {
 
 func TestAuthMiddleware_NoToken(t *testing.T) {
 
-	origToken := token
-	token = ""
-	defer func() { token = origToken }()
+	origToken := cfg.Token
+	cfg.Token = ""
+	defer func() { cfg.Token = origToken }()
 
 	called := false
 	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,9 +61,9 @@ func TestAuthMiddleware_NoToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {
-	origToken := token
-	token = "secret123"
-	defer func() { token = origToken }()
+	origToken := cfg.Token
+	cfg.Token = "secret123"
+	defer func() { cfg.Token = origToken }()
 
 	called := false
 	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -82,9 +82,9 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
-	origToken := token
-	token = "secret123"
-	defer func() { token = origToken }()
+	origToken := cfg.Token
+	cfg.Token = "secret123"
+	defer func() { cfg.Token = origToken }()
 
 	called := false
 	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

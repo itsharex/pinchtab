@@ -39,7 +39,7 @@ func TestDisableAnimationsCSSIsIIFE(t *testing.T) {
 
 func TestNoAnimationsConfigDefault(t *testing.T) {
 
-	if noAnimations {
+	if cfg.NoAnimations {
 		t.Error("noAnimations should default to false")
 	}
 }

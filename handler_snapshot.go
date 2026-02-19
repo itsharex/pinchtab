@@ -44,11 +44,11 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	tCtx, tCancel := context.WithTimeout(ctx, cfg.ActionTimeout)
 	defer tCancel()
 	go cancelOnClientDone(r.Context(), tCancel)
 
-	if reqNoAnim && !noAnimations {
+	if reqNoAnim && !cfg.NoAnimations {
 		disableAnimationsOnce(tCtx)
 	}
 
@@ -153,7 +153,7 @@ func (b *Bridge) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	if output == "file" {
 
-		snapshotDir := filepath.Join(stateDir, "snapshots")
+		snapshotDir := filepath.Join(cfg.StateDir, "snapshots")
 		if err := os.MkdirAll(snapshotDir, 0755); err != nil {
 			jsonErr(w, 500, fmt.Errorf("create snapshot dir: %w", err))
 			return

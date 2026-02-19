@@ -37,7 +37,7 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		titleWait = time.Duration(req.WaitTitle * float64(time.Second))
 	}
 
-	navTimeout := navigateTimeout
+	navTimeout := cfg.NavigateTimeout
 	if req.Timeout > 0 {
 		if req.Timeout > 120 {
 			req.Timeout = 120
@@ -52,9 +52,9 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 		blockPatterns = imageBlockPatterns
 	} else if req.BlockImages != nil && !*req.BlockImages {
 		blockPatterns = nil
-	} else if blockMedia {
+	} else if cfg.BlockMedia {
 		blockPatterns = mediaBlockPatterns
-	} else if blockImages {
+	} else if cfg.BlockImages {
 		blockPatterns = imageBlockPatterns
 	}
 
@@ -93,7 +93,7 @@ func (b *Bridge) handleNavigate(w http.ResponseWriter, r *http.Request) {
 
 	if blockPatterns != nil {
 		_ = setResourceBlocking(tCtx, blockPatterns)
-	} else if blockImages {
+	} else if cfg.BlockImages {
 		_ = setResourceBlocking(tCtx, nil)
 	}
 
@@ -131,7 +131,7 @@ func (b *Bridge) handleEvaluate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tCtx, tCancel := context.WithTimeout(ctx, actionTimeout)
+	tCtx, tCancel := context.WithTimeout(ctx, cfg.ActionTimeout)
 	defer tCancel()
 	go cancelOnClientDone(r.Context(), tCancel)
 
