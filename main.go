@@ -129,7 +129,7 @@ func main() {
 
 	profileObserver := func(evt AgentEvent) {
 		if evt.Profile != "" {
-			profMgr.tracker.Record(evt.Profile, ActionRecord{
+			profMgr.RecordAction(evt.Profile, ActionRecord{
 				Timestamp:  evt.Timestamp,
 				Method:     strings.SplitN(evt.Action, " ", 2)[0],
 				Endpoint:   strings.SplitN(evt.Action, " ", 2)[1],
@@ -328,7 +328,7 @@ func applyTimezone(browserCtx context.Context) {
 }
 
 // registerRoutes wires all HTTP handlers to the mux.
-func registerRoutes(mux *http.ServeMux, b *Bridge, profMgr *ProfileManager, dashboard *Dashboard, orchestrator *Orchestrator) {
+func registerRoutes(mux *http.ServeMux, b *Bridge, profMgr ProfileService, dashboard *Dashboard, orchestrator OrchestratorService) {
 	mux.HandleFunc("GET /health", b.handleHealth)
 	mux.HandleFunc("GET /tabs", b.handleTabs)
 	mux.HandleFunc("GET /snapshot", b.handleSnapshot)

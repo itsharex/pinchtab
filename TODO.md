@@ -37,7 +37,7 @@ P2 (K11 file path, blockImages on CreateTab) — all resolved.
 ### Code Quality
 - [ ] **Extract TabManager from Bridge** — Bridge is a semi-god object. Split tabs + snapshots management into its own `TabManager` struct.
 - [ ] **installStableBinary streaming** — Use `io.Copy` with file streams instead of reading entire binary into memory.
-- [ ] **Interfaces for ProfileManager/Orchestrator** — Add interfaces for unit testability (like `BridgeAPI`).
+- [x] **Interfaces for ProfileManager/Orchestrator** — `ProfileService` and `OrchestratorService` interfaces with compile-time checks.
 - [ ] **proxy_ws.go proper HTTP** — Replace raw `backend.Write` of HTTP headers with proper request construction.
 - [x] **Dashboard SSE keepalive** — 30s keepalive comments on SSE connections.
 

@@ -187,6 +187,11 @@ func (pm *ProfileManager) Delete(name string) error {
 	return os.RemoveAll(dir)
 }
 
+// RecordAction records an action for a profile (implements ProfileService).
+func (pm *ProfileManager) RecordAction(profile string, record ActionRecord) {
+	pm.tracker.Record(profile, record)
+}
+
 func (pm *ProfileManager) Logs(name string, limit int) []ActionRecord {
 	return pm.tracker.GetLogs(name, limit)
 }

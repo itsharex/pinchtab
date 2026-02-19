@@ -65,7 +65,7 @@ func runDashboard() {
 
 	profileObserver := func(evt AgentEvent) {
 		if evt.Profile != "" {
-			profMgr.tracker.Record(evt.Profile, ActionRecord{
+			profMgr.RecordAction(evt.Profile, ActionRecord{
 				Timestamp:  evt.Timestamp,
 				Method:     strings.SplitN(evt.Action, " ", 2)[0],
 				Endpoint:   strings.SplitN(evt.Action, " ", 2)[1],
