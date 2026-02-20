@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"path/filepath"
 	"strings"
 	"time"
@@ -58,6 +59,7 @@ type RuntimeConfig struct {
 	Timezone         string
 	BlockImages      bool
 	BlockMedia       bool
+	MaxTabs          int
 	ChromeBinary     string
 	ChromeExtraFlags string
 	NoAnimations     bool
@@ -76,6 +78,18 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envIntOr(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return fallback
+	}
+	return n
 }
 
 func envBoolOr(key string, fallback bool) bool {
@@ -107,6 +121,7 @@ type FileConfig struct {
 	ProfileDir  string `json:"profileDir"`
 	Headless    *bool  `json:"headless,omitempty"`
 	NoRestore   bool   `json:"noRestore"`
+	MaxTabs     *int   `json:"maxTabs,omitempty"`
 	TimeoutSec  int    `json:"timeoutSec,omitempty"`
 	NavigateSec int    `json:"navigateSec,omitempty"`
 }
@@ -125,6 +140,7 @@ func loadConfig() {
 		Timezone:         os.Getenv("BRIDGE_TIMEZONE"),
 		BlockImages:      os.Getenv("BRIDGE_BLOCK_IMAGES") == "true",
 		BlockMedia:       os.Getenv("BRIDGE_BLOCK_MEDIA") == "true",
+		MaxTabs:          envIntOr("BRIDGE_MAX_TABS", 20),
 		ChromeBinary:     os.Getenv("CHROME_BINARY"),
 		ChromeExtraFlags: os.Getenv("CHROME_FLAGS"),
 		NoAnimations:     os.Getenv("BRIDGE_NO_ANIMATIONS") == "true",
@@ -169,6 +185,9 @@ func loadConfig() {
 	}
 	if fc.NoRestore && os.Getenv("BRIDGE_NO_RESTORE") == "" {
 		cfg.NoRestore = true
+	}
+	if fc.MaxTabs != nil && os.Getenv("BRIDGE_MAX_TABS") == "" {
+		cfg.MaxTabs = *fc.MaxTabs
 	}
 	if fc.TimeoutSec > 0 && os.Getenv("BRIDGE_TIMEOUT") == "" {
 		cfg.ActionTimeout = time.Duration(fc.TimeoutSec) * time.Second
@@ -244,6 +263,7 @@ func handleConfigCommand() {
 		fmt.Printf("  State Dir:  %s\n", cfg.StateDir)
 		fmt.Printf("  Profile:    %s\n", cfg.ProfileDir)
 		fmt.Printf("  Headless:   %v\n", cfg.Headless)
+		fmt.Printf("  Max Tabs:   %d\n", cfg.MaxTabs)
 		fmt.Printf("  No Restore: %v\n", cfg.NoRestore)
 		fmt.Printf("  Timeouts:   action=%v navigate=%v\n", cfg.ActionTimeout, cfg.NavigateTimeout)
 

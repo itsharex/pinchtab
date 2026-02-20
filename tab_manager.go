@@ -87,6 +87,16 @@ func (tm *TabManager) CreateTab(url string) (string, context.Context, context.Ca
 	if tm.browserCtx == nil {
 		return "", nil, nil, fmt.Errorf("no browser context available")
 	}
+
+	if cfg.MaxTabs > 0 {
+		targets, err := tm.ListTargets()
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("check tab count: %w", err)
+		}
+		if len(targets) >= cfg.MaxTabs {
+			return "", nil, nil, fmt.Errorf("tab limit reached (%d/%d) — close a tab first", len(targets), cfg.MaxTabs)
+		}
+	}
 	ctx, cancel := chromedp.NewContext(tm.browserCtx)
 
 	if tm.onTabSetup != nil {

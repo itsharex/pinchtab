@@ -70,6 +70,43 @@ func TestMaskToken(t *testing.T) {
 	}
 }
 
+func TestEnvIntOr(t *testing.T) {
+	t.Setenv("TEST_INT", "42")
+	if got := envIntOr("TEST_INT", 10); got != 42 {
+		t.Errorf("envIntOr = %d, want 42", got)
+	}
+	t.Setenv("TEST_INT", "")
+	if got := envIntOr("TEST_INT", 10); got != 10 {
+		t.Errorf("envIntOr empty = %d, want 10", got)
+	}
+	t.Setenv("TEST_INT", "bad")
+	if got := envIntOr("TEST_INT", 10); got != 10 {
+		t.Errorf("envIntOr bad = %d, want 10", got)
+	}
+	t.Setenv("TEST_INT", "-5")
+	if got := envIntOr("TEST_INT", 10); got != 10 {
+		t.Errorf("envIntOr negative = %d, want 10", got)
+	}
+}
+
+func TestMaxTabsDefault(t *testing.T) {
+	t.Setenv("BRIDGE_MAX_TABS", "")
+	t.Setenv("BRIDGE_CONFIG", "/nonexistent")
+	loadConfig()
+	if cfg.MaxTabs != 20 {
+		t.Errorf("default MaxTabs = %d, want 20", cfg.MaxTabs)
+	}
+}
+
+func TestMaxTabsEnv(t *testing.T) {
+	t.Setenv("BRIDGE_MAX_TABS", "5")
+	t.Setenv("BRIDGE_CONFIG", "/nonexistent")
+	loadConfig()
+	if cfg.MaxTabs != 5 {
+		t.Errorf("MaxTabs = %d, want 5", cfg.MaxTabs)
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	fc := defaultFileConfig()
 	if fc.Port != "9867" {
