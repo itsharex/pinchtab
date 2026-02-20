@@ -43,11 +43,11 @@ curl http://localhost:9867/profiles
 ```json
 [
   {
-    "id": "278be873adeb",
-    "name": "Pinchtab org",
-    "accountEmail": "admin@gi-ago.com",
-    "accountName": "Luigi Agosti",
-    "useWhen": "For gmail and x.com"
+    "id": "a1b2c3d4e5f6",
+    "name": "Work",
+    "accountEmail": "you@company.com",
+    "accountName": "Your Name",
+    "useWhen": "Work email and social accounts"
   }
 ]
 ```
@@ -60,13 +60,13 @@ The dashboard exposes two endpoints that make profile management trivial for age
 
 ```bash
 # Start a profile (port auto-allocated)
-curl -X POST http://localhost:9867/start/278be873adeb
+curl -X POST http://localhost:9867/start/a1b2c3d4e5f6
 ```
 
 ```json
 {
-  "id": "Pinchtab org-56490",
-  "name": "Pinchtab org",
+  "id": "Work-56490",
+  "name": "Work",
   "port": "56490",
   "status": "starting",
   "url": "http://localhost:56490"
@@ -86,13 +86,13 @@ curl -X POST http://localhost:$PORT/navigate \
 curl "http://localhost:$PORT/snapshot?maxTokens=4000"
 
 # Done — shut it down
-curl -X POST http://localhost:9867/stop/278be873adeb
+curl -X POST http://localhost:9867/stop/a1b2c3d4e5f6
 ```
 
 You can also pass a specific port or run headless if you want:
 
 ```bash
-curl -X POST http://localhost:9867/start/278be873adeb \
+curl -X POST http://localhost:9867/start/a1b2c3d4e5f6 \
   -H 'Content-Type: application/json' \
   -d '{"port": "9868", "headless": true}'
 ```
@@ -103,7 +103,7 @@ Here's what a full agent workflow looks like. The human already logged into Gmai
 
 ```bash
 # 1. Start the profile
-INSTANCE=$(curl -s -X POST http://localhost:9867/start/278be873adeb)
+INSTANCE=$(curl -s -X POST http://localhost:9867/start/a1b2c3d4e5f6)
 PORT=$(echo $INSTANCE | jq -r .port)
 
 # 2. Navigate to Gmail
@@ -116,16 +116,16 @@ curl -s "http://localhost:$PORT/snapshot?maxTokens=4000" | jq '.nodes[] | select
 
 Output:
 ```
-"unread, X, New login to X from ChromeDesktop on Mac, 11:44 AM, ..."
-"unread, Amazon Route 53, Registration of narrowexperts.com succeeded, 11:26 AM, ..."
-"unread, Amazon Route 53, Registration of expertsytem.com succeeded, 11:26 AM, ..."
+"unread, GitHub, [org/repo] New pull request #42, 11:44 AM, ..."
+"unread, Stripe, Your January invoice is ready, 11:26 AM, ..."
+"unread, AWS, Your EC2 instance is running, 11:15 AM, ..."
 ```
 
 No screenshots. No vision models. No token-heavy page dumps. Just structured data from the accessibility tree — the same way a screen reader would see it.
 
 ```bash
 # 4. Clean up
-curl -s -X POST http://localhost:9867/stop/278be873adeb
+curl -s -X POST http://localhost:9867/stop/a1b2c3d4e5f6
 ```
 
 ## When to Use Headed vs Headless
@@ -157,7 +157,7 @@ For agents that prefer CLI over UI:
 
 ```bash
 # Resolve a running profile to its URL
-pinchtab connect "Pinchtab org"
+pinchtab connect "Work"
 # → http://localhost:56490
 ```
 
@@ -167,7 +167,7 @@ Nothing stops you from running several profiles at once. Different accounts, dif
 
 ```bash
 # Work email
-curl -X POST http://localhost:9867/start/278be873adeb
+curl -X POST http://localhost:9867/start/a1b2c3d4e5f6
 
 # Personal Twitter
 curl -X POST http://localhost:9867/start/a1b2c3d4e5f6
