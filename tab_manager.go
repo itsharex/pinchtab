@@ -141,7 +141,7 @@ func (tm *TabManager) CloseTab(tabID string) error {
 
 	if err := target.CloseTarget(target.ID(tabID)).Do(cdp.WithExecutor(closeCtx, chromedp.FromContext(closeCtx).Browser)); err != nil {
 		if !tracked {
-			return nil
+			return fmt.Errorf("tab %s not found", tabID)
 		}
 		slog.Debug("close target CDP", "tabId", tabID, "err", err)
 	}
