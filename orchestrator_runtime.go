@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -69,7 +68,7 @@ func (o *Orchestrator) Launch(name, port string, headless bool) (*Instance, erro
 		"BRIDGE_NO_DASHBOARD": "true",
 	})
 	slog.Info("starting instance process", "id", id, "binary", o.binary, "port", port, "profile", profilePath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcGroup(cmd)
 
 	logBuf := newRingBuffer(64 * 1024)
 	cmd.Stdout = logBuf
@@ -226,7 +225,7 @@ func (o *Orchestrator) Stop(id string) error {
 		return nil
 	}
 
-	if err := syscall.Kill(-inst.PID, syscall.SIGTERM); err != nil {
+	if err := killProcessGroup(inst.PID, sigTERM); err != nil {
 		slog.Warn("failed to send SIGTERM to instance", "id", id, "pid", inst.PID, "err", err)
 	}
 	if waitForProcessExit(inst.PID, 3*time.Second) {
@@ -234,7 +233,7 @@ func (o *Orchestrator) Stop(id string) error {
 		return nil
 	}
 
-	if err := syscall.Kill(-inst.PID, syscall.SIGKILL); err != nil {
+	if err := killProcessGroup(inst.PID, sigKILL); err != nil {
 		slog.Warn("failed to send SIGKILL to instance", "id", id, "pid", inst.PID, "err", err)
 	}
 	inst.cancel()
@@ -315,8 +314,7 @@ func waitForProcessExit(pid int, timeout time.Duration) bool {
 }
 
 func isProcessAlive(pid int) bool {
-	err := syscall.Kill(pid, syscall.Signal(0))
-	return err == nil || err == syscall.EPERM
+	return processAlive(pid)
 }
 
 func (o *Orchestrator) List() []Instance {
@@ -475,7 +473,7 @@ func (o *Orchestrator) ForceShutdown() {
 
 	for _, inst := range instances {
 		if inst.PID > 0 {
-			_ = syscall.Kill(-inst.PID, syscall.SIGKILL)
+			_ = killProcessGroup(inst.PID, sigKILL)
 		}
 		if inst.cancel != nil {
 			inst.cancel()
