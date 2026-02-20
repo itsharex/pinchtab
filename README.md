@@ -231,8 +231,9 @@ In headed mode, log into sites in the visible Chrome window once; cookies and lo
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `BRIDGE_BIND` | `127.0.0.1` | Bind address — localhost only by default. Set to `0.0.0.0` for network access |
 | `BRIDGE_PORT` | `9867` | HTTP server port |
-| `BRIDGE_TOKEN` | *(none)* | Bearer token for auth |
+| `BRIDGE_TOKEN` | *(none)* | Bearer token for auth (recommended when using `BRIDGE_BIND=0.0.0.0`) |
 | `BRIDGE_HEADLESS` | `true` | Run Chrome headless (no window) |
 | `BRIDGE_PROFILE` | `~/.pinchtab/chrome-profile` | Chrome profile directory |
 | `BRIDGE_STATE_DIR` | `~/.pinchtab` | State/session storage |

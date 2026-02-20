@@ -182,4 +182,14 @@ Each gets its own port, its own Chrome process, its own isolated session. Agents
 
 Headed mode isn't about choosing between humans and agents. It's about letting them work together — each doing what they're best at. Humans handle the messy, contextual, trust-requiring parts. Agents handle the repetitive, fast, scale-requiring parts.
 
+## Security
+
+Pinchtab binds to `127.0.0.1` by default — only accessible from the machine it's running on. This is intentional. Your agent runs on the same machine, so it just works. Nobody on your network can reach the dashboard or the API.
+
+If you need remote access (e.g. Docker, remote server), set `BRIDGE_BIND=0.0.0.0` and **always** pair it with `BRIDGE_TOKEN` for authentication:
+
+```bash
+BRIDGE_BIND=0.0.0.0 BRIDGE_TOKEN=my-secret-token pinchtab dashboard
+```
+
 That's the whole point. 🦀

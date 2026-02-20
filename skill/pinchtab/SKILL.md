@@ -18,6 +18,9 @@ metadata:
           secret: true
           optional: true
           description: "Bearer auth token for Pinchtab API"
+        - name: BRIDGE_BIND
+          optional: true
+          description: "Bind address (default: 127.0.0.1, set 0.0.0.0 for network access)"
         - name: BRIDGE_PORT
           optional: true
           description: "HTTP port (default: 9867)"
@@ -460,9 +463,10 @@ curl http://localhost:9867/health
 
 | Var | Default | Description |
 |---|---|---|
+| `BRIDGE_BIND` | `127.0.0.1` | Bind address — localhost only by default. Set `0.0.0.0` for network access |
 | `BRIDGE_PORT` | `9867` | HTTP port |
 | `BRIDGE_HEADLESS` | `true` | Run Chrome headless |
-| `BRIDGE_TOKEN` | (none) | Bearer auth token |
+| `BRIDGE_TOKEN` | (none) | Bearer auth token (recommended when using `BRIDGE_BIND=0.0.0.0`) |
 | `BRIDGE_PROFILE` | `~/.pinchtab/chrome-profile` | Chrome profile dir |
 | `BRIDGE_STATE_DIR` | `~/.pinchtab` | State/session storage |
 | `BRIDGE_NO_RESTORE` | `false` | Skip tab restore on startup |
