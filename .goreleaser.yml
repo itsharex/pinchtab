@@ -1,7 +1,8 @@
 version: 2
 
 builds:
-  - ldflags:
+  - main: ./cmd/pinchtab
+    ldflags:
       - -s -w -X main.version={{.Version}}
     goos:
       - linux
