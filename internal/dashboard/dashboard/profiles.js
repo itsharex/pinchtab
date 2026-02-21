@@ -57,11 +57,13 @@ async function loadProfiles() {
   }
 
   try {
-    const [profiles, instances, health] = await Promise.all([
+    const [profilesRaw, instancesRaw, health] = await Promise.all([
       fetchJSONOr('/profiles', []),
       fetchJSONOr('/instances', []),
       fetchJSONOr('/health', {})
     ]);
+    const profiles = Array.isArray(profilesRaw) ? profilesRaw : [];
+    const instances = Array.isArray(instancesRaw) ? instancesRaw : [];
     let tabsData = { tabs: [] };
     if (!health.mode) {
       tabsData = await fetchJSONOr('/tabs', { tabs: [] });
