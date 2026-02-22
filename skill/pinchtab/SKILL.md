@@ -387,6 +387,27 @@ curl "http://localhost:9867/download?url=https://site.com/export.csv&output=file
 
 Key use case: downloading files from authenticated sites — the browser's cookies and stealth settings are used automatically. No need to extract cookies and use curl separately.
 
+### Upload files
+
+```bash
+# Upload a local file to a file input
+curl -X POST "http://localhost:9867/upload?tabId=TAB_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"selector": "input[type=file]", "paths": ["/tmp/photo.jpg"]}'
+
+# Upload base64-encoded data
+curl -X POST "http://localhost:9867/upload" \
+  -H "Content-Type: application/json" \
+  -d '{"selector": "#avatar-input", "files": ["data:image/png;base64,iVBOR..."]}'
+
+# Combine both — local files + base64
+curl -X POST "http://localhost:9867/upload" \
+  -H "Content-Type: application/json" \
+  -d '{"selector": "input[type=file]", "paths": ["/tmp/doc.pdf"], "files": ["data:image/png;base64,..."]}'
+```
+
+Sets files on `<input type=file>` elements via CDP. The browser fires `change` events as if the user picked files. Selector defaults to `input[type=file]` if omitted. Supports base64 data URLs, raw base64 strings, and local file paths.
+
 ### Screenshot
 
 ```bash
