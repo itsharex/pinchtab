@@ -123,7 +123,24 @@
 | C4 | Set cookies bad JSON | `POST /cookies {broken` | 400 |
 | C5 | Set cookies empty | `POST /cookies {"url":"...","cookies":[]}` | Error or no-op |
 
-### 1.10 Stealth
+### 1.10 File Upload
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| UP1 | Upload local file | Navigate to page with file input, `POST /upload {"selector":"input[type=file]","paths":["/tmp/test.jpg"]}` | `{"status":"ok","files":1}` |
+| UP2 | Upload base64 data URL | `POST /upload {"files":["data:image/png;base64,..."]}` | `{"status":"ok","files":1}` |
+| UP3 | Upload raw base64 | `POST /upload {"files":["iVBOR..."]}` | `{"status":"ok","files":1}` |
+| UP4 | Upload multiple files | `POST /upload {"paths":["/tmp/a.jpg","/tmp/b.png"]}` | `{"status":"ok","files":2}` |
+| UP5 | Combined paths + base64 | `POST /upload {"paths":["/tmp/a.jpg"],"files":["data:image/png;base64,..."]}` | `{"status":"ok","files":2}` |
+| UP6 | Default selector | `POST /upload {"paths":["/tmp/test.jpg"]}` (no selector) | Uses `input[type=file]`, succeeds |
+| UP7 | Invalid selector | `POST /upload {"selector":"#nonexistent","paths":["/tmp/test.jpg"]}` | 500, selector error |
+| UP8 | Missing files and paths | `POST /upload {"selector":"input[type=file]"}` | 400, error |
+| UP9 | File not found | `POST /upload {"paths":["/tmp/nonexistent.jpg"]}` | 400, file not found |
+| UP10 | Invalid base64 | `POST /upload {"files":["not-valid!!!"]}` | 400, decode error |
+| UP11 | Bad JSON body | `POST /upload {broken` | 400, parse error |
+| UP12 | No tab | `POST /upload {"paths":["/tmp/test.jpg"]}` with no tabs | Error |
+
+### 1.11 Stealth
 
 | # | Scenario | Steps | Expected |
 |---|----------|-------|----------|
@@ -136,7 +153,7 @@
 | ST7 | Fingerprint no tab | `POST /fingerprint/rotate {}` with no tabs | Error |
 | ST8 | Bot detection site | Navigate to `bot.sannysoft.com` | Most checks pass (green) |
 
-### 1.11 Configuration
+### 1.12 Configuration
 
 | # | Scenario | Steps | Expected |
 |---|----------|-------|----------|
@@ -146,7 +163,7 @@
 | CF4 | Custom profile dir | `BRIDGE_PROFILE=/tmp/test-profile ./pinchtab` | Uses specified profile |
 | CF5 | No restore | `BRIDGE_NO_RESTORE=true ./pinchtab` | Doesn't restore previous tabs |
 
-### 1.12 Session Persistence
+### 1.13 Session Persistence
 
 | # | Scenario | Steps | Expected |
 |---|----------|-------|----------|
