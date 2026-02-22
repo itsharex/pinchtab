@@ -46,6 +46,7 @@ func (h *Handlers) RegisterRoutes(mux *http.ServeMux, doShutdown func()) {
 	mux.HandleFunc("GET /stealth/status", h.HandleStealthStatus)
 	mux.HandleFunc("POST /fingerprint/rotate", h.HandleFingerprintRotate)
 	mux.HandleFunc("GET /download", h.HandleDownload)
+	mux.HandleFunc("POST /upload", h.HandleUpload)
 	mux.HandleFunc("GET /screencast", h.HandleScreencast)
 	mux.HandleFunc("GET /screencast/tabs", h.HandleScreencastAll)
 	mux.HandleFunc("GET /welcome", func(w http.ResponseWriter, r *http.Request) {
