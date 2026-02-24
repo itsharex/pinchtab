@@ -72,7 +72,7 @@ This document tracks which scenarios from the test plan are now covered by autom
 
 ### Screenshots
 - ✅ **SS1** — Basic screenshot (base64)
-- ✅ **SS2** — Raw screenshot (JPEG bytes)
+- ⚠️ **SS2** — Raw screenshot (JPEG bytes) — Manual test (see `manual/screenshot-raw.md`)
 
 ### JavaScript Evaluation
 - ✅ **E1** — Simple eval (1+1)
@@ -88,13 +88,14 @@ This document tracks which scenarios from the test plan are now covered by autom
 - ✅ **PD6** — PDF scale parameter
 
 ### File Upload
-- ✅ **UP1** — Upload single file with selector
-- ✅ **UP4** — Upload multiple files
-- ✅ **UP6** — Upload with default selector
-- ✅ **UP7** — Upload invalid selector error
-- ✅ **UP8** — Upload missing files error
-- ✅ **UP9** — Upload file not found error
-- ✅ **UP11** — Upload bad JSON error
+- ⚠️ **UP1-UP11** (7 tests) — Manual tests (file:// URL not supported in headless)
+  - UP1: Single file upload
+  - UP4: Multiple files
+  - UP6: Default selector
+  - UP7: Invalid selector error
+  - UP8: Missing files error
+  - UP9: File not found error
+  - UP11: Bad JSON error
 
 ### Cookies
 - ✅ **C1** — Get cookies
@@ -142,6 +143,8 @@ The following scenarios require manual testing or deployment-specific setups:
 - **ER1, ER2, ER7-ER8** — Chrome crash recovery, connection refused, port conflict (system-level, not practical)
 
 ### Manual Testing Only
+- ⚠️ **UP1-UP11** (7 tests) — File upload (`tests/manual/file-upload.md`) — file:// URL not supported in headless Chrome
+- ⚠️ **SS2** (1 test) — Raw screenshot (`tests/manual/screenshot-raw.md`) — CDP/display limitations in headless
 - **A16-A17** — Human click/type (bezier movement, mouse trajectory)
 - **SP1-SP3** — Session persistence (requires server restart sequencing)
 - **HM1-HM3** — Headed mode (requires display server)
@@ -161,28 +164,31 @@ Token usage, speed benchmarks, and Chrome startup metrics tracked separately in 
 
 ## Statistics
 
-**Automated:** 84 scenarios (48 → 61 → 71 → 73 → 84)
+**Automated:** 76 scenarios (moved UP1-UP11, SS2 to manual due to headless limitations)
 - Health: 1
 - Navigation: 8 (N1-N8)
-- Snapshot: 12 (S1-S12)
-- Text: 5 (T1-T5) ↑
+- Snapshot: 11 (S1-S8, S10-S12) — SS2 moved to manual
+- Text: 5 (T1-T5)
 - Actions: 15 (A1-A15)
 - Tabs: 6 (TB1-TB6)
-- Screenshots: 2 (SS1-SS2)
+- Screenshots: 1 (SS1 only) — SS2 moved to manual
 - Eval: 4 (E1-E4)
 - PDF: 5 (PD1-PD3, PD5-PD6)
-- File Upload: 7 (UP1, UP4, UP6-UP9, UP11) ↑
 - Cookies: 5 (C1-C5)
 - Stealth: 6 (ST1, ST3-ST6, ST8)
 - Error Handling: 4 (ER3-ER6)
-- Configuration: 8 (CF1-CF8) ↑
+- Configuration: 8 (CF1-CF8)
 
-**Manual/Future:** 14 scenarios (reduced from 25)  
+**Manual/Future:** 22 scenarios
+- ⚠️ UP1-UP11 (7 tests) — File upload (headless limitation)
+- ⚠️ SS2 (1 test) — Raw screenshot (display limitation)
+- A16-A17, SP1-SP3, HM1-HM3, MA1-MA8, D1-D7, DA1-DA5 (14 tests)
+
 **Not Automating:** 4 scenarios (ER1, ER2, ER7-ER8)  
 **Total Coverage:** 98 test scenarios
 
-**Coverage achieved: 86% automated (84 of 98 test scenarios)**
+**Coverage achieved: 78% automated in CI (76 of 98 test scenarios)**
 
 ---
 
-*Last updated: 2026-02-24 20:30 GMT — 84 automated, 14 manual remaining (86% coverage)*
+*Last updated: 2026-02-24 21:45 GMT — 76 automated (CI), 22 manual, 4 not doing (78% CI coverage)*
