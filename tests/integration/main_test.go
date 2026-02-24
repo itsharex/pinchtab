@@ -235,5 +235,3 @@ func navigate(t *testing.T, url string) {
 		t.Fatalf("navigate to %s failed with %d", url, code)
 	}
 }
-
-
