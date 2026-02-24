@@ -111,7 +111,7 @@ func TestTabs_MaxTabs(t *testing.T) {
 	}
 
 	// Verify we created at least one tab or hit an error
-	if createdCount == 0 && len(initialTabs) > 0 {
+	if createdCount == 0 && initialTabs > 0 {
 		// Acceptable: either we created tabs or hit limit immediately
 	}
 

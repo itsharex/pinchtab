@@ -141,3 +141,63 @@ func TestConfig_ChromeVersionOverride(t *testing.T) {
 
 	t.Logf("Chrome version override working: %s", version)
 }
+
+// CF4: Custom profile directory
+// Verify that BRIDGE_PROFILE environment variable is accepted and server starts.
+// Usage: TEST_PROFILE_DIR=/tmp/custom-profile go test -tags integration -v -run TestConfig_CustomProfileDir
+func TestConfig_CustomProfileDir(t *testing.T) {
+	// Check if TEST_PROFILE_DIR was set
+	testProfileDir := os.Getenv("TEST_PROFILE_DIR")
+	if testProfileDir == "" {
+		t.Skip("TEST_PROFILE_DIR not set; set it to run this test (e.g., TEST_PROFILE_DIR=/tmp/custom-profile go test -tags integration -v)")
+	}
+
+	// If we reach here, the server has already been started with the custom profile dir.
+	// Simply verify the server is responding to requests - this confirms BRIDGE_PROFILE
+	// was accepted and the server started without error.
+	navigate(t, "https://example.com")
+
+	code, body := httpPost(t, "/evaluate", map[string]string{
+		"expression": "window.location.href",
+	})
+	if code != 200 {
+		t.Fatalf("expected 200, got %d (body: %s)", code, body)
+	}
+
+	result := jsonField(t, body, "result")
+	if result == "" {
+		t.Errorf("expected non-empty result from evaluate")
+	}
+
+	t.Logf("Custom profile directory test passed: server responding normally")
+}
+
+// CF5: NO_RESTORE configuration
+// Verify that BRIDGE_NO_RESTORE environment variable is accepted and server starts.
+// Usage: TEST_NO_RESTORE=true go test -tags integration -v -run TestConfig_NoRestore
+func TestConfig_NoRestore(t *testing.T) {
+	// Check if TEST_NO_RESTORE was set
+	testNoRestore := os.Getenv("TEST_NO_RESTORE")
+	if testNoRestore == "" {
+		t.Skip("TEST_NO_RESTORE not set; set it to run this test (e.g., TEST_NO_RESTORE=true go test -tags integration -v)")
+	}
+
+	// If we reach here, the server has already been started with the NO_RESTORE config.
+	// Simply verify the server is responding to requests - this confirms BRIDGE_NO_RESTORE
+	// was accepted and the server started without error.
+	navigate(t, "https://example.com")
+
+	code, body := httpPost(t, "/evaluate", map[string]string{
+		"expression": "window.location.href",
+	})
+	if code != 200 {
+		t.Fatalf("expected 200, got %d (body: %s)", code, body)
+	}
+
+	result := jsonField(t, body, "result")
+	if result == "" {
+		t.Errorf("expected non-empty result from evaluate")
+	}
+
+	t.Logf("NO_RESTORE configuration test passed: server responding normally")
+}

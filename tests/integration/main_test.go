@@ -16,6 +16,17 @@ import (
 
 var serverURL string
 
+// removeEnvPrefix removes all environment variables starting with the given prefix
+func removeEnvPrefix(env []string, prefix string) []string {
+	result := []string{}
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
 func TestMain(m *testing.M) {
 	port := os.Getenv("PINCHTAB_TEST_PORT")
 	if port == "" {
@@ -66,6 +77,21 @@ func TestMain(m *testing.M) {
 	if testChromeVersion := os.Getenv("TEST_CHROME_VERSION"); testChromeVersion != "" {
 		fmt.Fprintf(os.Stderr, "TestMain: setting BRIDGE_CHROME_VERSION=%s from TEST_CHROME_VERSION\n", testChromeVersion)
 		env = append(env, "BRIDGE_CHROME_VERSION="+testChromeVersion)
+	}
+
+	// Pass BRIDGE_PROFILE if TEST_PROFILE_DIR is set
+	if testProfileDir := os.Getenv("TEST_PROFILE_DIR"); testProfileDir != "" {
+		fmt.Fprintf(os.Stderr, "TestMain: setting BRIDGE_PROFILE=%s from TEST_PROFILE_DIR\n", testProfileDir)
+		// Remove the default BRIDGE_PROFILE and use the test-specified one
+		env = removeEnvPrefix(env, "BRIDGE_PROFILE=")
+		env = append(env, "BRIDGE_PROFILE="+testProfileDir)
+	}
+
+	// Handle BRIDGE_NO_RESTORE - only disable if TEST_NO_RESTORE is explicitly set
+	if testNoRestore := os.Getenv("TEST_NO_RESTORE"); testNoRestore != "" {
+		fmt.Fprintf(os.Stderr, "TestMain: setting BRIDGE_NO_RESTORE=%s from TEST_NO_RESTORE\n", testNoRestore)
+		env = removeEnvPrefix(env, "BRIDGE_NO_RESTORE=")
+		env = append(env, "BRIDGE_NO_RESTORE="+testNoRestore)
 	}
 
 	cmd.Env = env
