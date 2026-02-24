@@ -104,6 +104,8 @@ This document tracks which scenarios from the test plan are now covered by autom
 *Note: ST2 (canvas noise) skipped — unreliable in headless CI. ST7 replaced with specific tab rotation test.*
 
 ### Error Handling & Edge Cases
+- ✅ **ER3** — Binary page (PDF URL) graceful handling
+- ✅ **ER4** — Rapid navigate stress test (concurrent requests)
 - ✅ **ER5** — Unicode content (CJK/emoji/RTL) handling in snapshot & text
 - ✅ **ER6** — Empty page (about:blank) handling in snapshot & text
 
@@ -124,16 +126,16 @@ The following scenarios require manual testing or deployment-specific setups:
 - ✅ **CF3-Extended** — CDP_URL mode (fix verified, needs manual test to confirm: `manual/cf3-cdp-create-tab-repro.md`)
 
 ### Not Yet Automated
-- **T5** — Token efficiency
-- **A16-A17** — Human click/type (bezier movement)
+- **T5** — Token efficiency (measurement test)
+- **A16-A17** — Human click/type (bezier movement, mouse trajectory)
 - **UP1-UP12** — File upload (requires test assets + HTML form)
 - **CF1-CF3** — Config file precedence & CDP_URL (requires file setup)
 - **SP1-SP3** — Session persistence (requires server restart sequencing)
 - **HM1-HM3** — Headed mode (requires display server)
 - **MA1-MA8** — Multi-agent scenarios (requires coordination)
-- **ER1-ER4, ER7-ER8** — Additional error handling edge cases
+- **ER1, ER2, ER7-ER8** — Chrome crash recovery, connection refused, port conflict (system-level tests)
 - **Docker (D1-D7)** — Requires Docker, deployment testing
-- **Dashboard** — Requires manual profile management
+- **Dashboard (DA1-DA5)** — Requires manual profile management
 
 See `manual/` directory for detailed test plans.
 
@@ -147,26 +149,26 @@ Token usage, speed benchmarks, and Chrome startup metrics tracked separately in 
 
 ## Statistics
 
-**Automated:** 71 scenarios (48 → 61 → 71)
+**Automated:** 73 scenarios (48 → 61 → 71 → 73)
 - Health: 1
-- Navigation: 8 (↑ N3, N8)
-- Snapshot: 12 (↑ S6, S7, S8, S11, S12)
-- Text: 4
-- Actions: 15
-- Tabs: 6
-- Screenshots: 2
-- Eval: 4
-- PDF: 5
-- Cookies: 5
-- Stealth: 6
-- Error Handling: 2
-- Configuration: 5
+- Navigation: 8 (N1, N2, N3, N4, N5, N6, N7, N8)
+- Snapshot: 12 (S1-S7, S8-S12)
+- Text: 4 (T1-T4)
+- Actions: 15 (A1-A7, A8-A15)
+- Tabs: 6 (TB1-TB6)
+- Screenshots: 2 (SS1-SS2)
+- Eval: 4 (E1-E4)
+- PDF: 5 (PD1-PD3, PD5-PD6)
+- Cookies: 5 (C1-C5)
+- Stealth: 6 (ST1, ST3-ST6, ST8)
+- Error Handling: 4 (↑ ER3, ER4, ER5, ER6)
+- Configuration: 5 (CF4-CF8)
 
-**Manual/Future:** ~27 scenarios (reduced from ~37)  
-**Total Coverage:** 98 test scenarios across health, nav, snapshot, text, actions, tabs, screenshots, eval, PDF, cookies, stealth, error handling, and config
+**Manual/Future:** ~25 scenarios (reduced from ~27)  
+**Total Coverage:** 98 test scenarios
 
-**Coverage achieved: 72% automated (71 of 98 test scenarios)**
+**Coverage achieved: 74% automated (73 of 98 test scenarios)**
 
 ---
 
-*Last updated: 2026-02-24 20:10 GMT — 71 automated, 27 manual remaining (72% coverage)*
+*Last updated: 2026-02-24 20:15 GMT — 73 automated, 25 manual remaining (74% coverage)*
