@@ -175,7 +175,7 @@ func TestSnapshot_RefStability(t *testing.T) {
 	initialLen := len(body)
 
 	// Perform an action (press a key) to trigger potential ref changes
-	code, _ = httpPost(t, "/action", map[string]string{
+	_, _ = httpPost(t, "/action", map[string]string{
 		"kind": "press",
 		"key":  "Escape",
 	})
