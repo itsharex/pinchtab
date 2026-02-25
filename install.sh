@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Pinchtab Installer for macOS and Linux
@@ -23,11 +23,17 @@ cleanup_tmpfiles() {
 trap cleanup_tmpfiles EXIT
 
 TMPFILES=()
+LOGFILE=""
+
 mktempfile() {
     local f
     f="$(mktemp)"
     TMPFILES+=("$f")
     echo "$f"
+}
+
+setup_logfile() {
+    LOGFILE="$(mktempfile)"
 }
 
 ui_info() {
@@ -103,12 +109,36 @@ check_npm() {
 install_pinchtab() {
     ui_section "Installing Pinchtab"
     
-    if npm install -g pinchtab 2>&1 | tee /tmp/pinchtab-install.log; then
+    if npm install -g pinchtab > "$LOGFILE" 2>&1; then
         ui_success "Pinchtab installed successfully"
         return 0
     else
+        local exit_code=$?
         ui_error "npm install failed"
-        echo "Log: /tmp/pinchtab-install.log"
+        echo ""
+        
+        # Check for permission error
+        if grep -q "EACCES\|permission denied" "$LOGFILE"; then
+            echo "This is a permission error. Try one of these:"
+            echo ""
+            echo "  Option 1: Use nvm (recommended)"
+            echo "    curl https://github.com/nvm-sh/nvm/raw/master/install.sh | bash"
+            echo "    nvm install node"
+            echo "    npm install -g pinchtab"
+            echo ""
+            echo "  Option 2: Use user prefix (no sudo needed)"
+            echo "    npm install -g --prefix \"\$HOME/.local\" pinchtab"
+            echo "    export PATH=\"\$HOME/.local/bin:\$PATH\"  # Add to ~/.bashrc or ~/.zshrc"
+            echo ""
+            echo "  Option 3: Fix npm permissions globally"
+            echo "    mkdir ~/.npm-global"
+            echo "    npm config set prefix '~/.npm-global'"
+            echo "    export PATH=~/.npm-global/bin:\$PATH  # Add to ~/.bashrc or ~/.zshrc"
+            echo ""
+        else
+            echo "Install log:"
+            cat "$LOGFILE"
+        fi
         exit 1
     fi
 }
@@ -136,7 +166,7 @@ show_next_steps() {
     echo ""
     echo "  Or navigate & snapshot:"
     echo -e "    ${MUTED}pinchtab nav https://httpbin.org/html${NC}"
-    echo -e "    ${MUTED}pinchtab snap | jq .count${NC}"
+    echo -e "    ${MUTED}pinchtab snap${NC}  (pipe to 'jq .count' if you have jq installed)"
     echo ""
     echo "  Documentation:"
     echo -e "    ${MUTED}https://pinchtab.com${NC}"
@@ -145,6 +175,7 @@ show_next_steps() {
 
 main() {
     print_banner
+    setup_logfile
     
     detect_os
     check_node
