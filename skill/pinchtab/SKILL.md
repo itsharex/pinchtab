@@ -132,67 +132,27 @@ For the full HTTP API (curl examples, download, upload, cookies, stealth, batch 
 
 **Strategy**: Start with `?filter=interactive&format=compact`. Use `?diff=true` on subsequent snapshots. Use `/text` when you only need readable content. Full `/snapshot` only when needed.
 
-## Agent Optimization: The 3-Second Pattern
+## Agent Optimization
 
 **Validated Feb 2026**: Testing with AI agents revealed a critical pattern for reliable, token-efficient scraping.
 
-### The Problem
-Agents often failed to get full page snapshots or used excessive tokens trying multiple filters and approaches. Initial snapshot would return only 1 node (RootWebArea), forcing agents to retry with different logic.
+**See the full guide:** [docs/agent-optimization.md](../../docs/agent-optimization.md)
 
-### The Solution
-**Always wait 3 seconds after navigate before taking a snapshot.** This allows Chrome to fully render the accessibility tree.
+### Quick Summary
+
+**The 3-second pattern** — wait after navigate before snapshot:
 
 ```bash
-# ✅ Reliable pattern (tested on Corriere.it, BBC News, etc.)
 curl -X POST http://localhost:9867/navigate \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://www.corriere.it"}' && \
+  -d '{"url": "https://example.com"}' && \
 sleep 3 && \
 curl http://localhost:9867/snapshot | jq '.nodes[] | select(.name | length > 15) | .name'
 ```
 
-### Token Cost Impact
+**Token savings:** 93% reduction (3,842 → 272 tokens) when using prescriptive instructions vs. exploratory agent approach.
 
-When agents follow this pattern **vs. exploring multiple approaches**:
-
-| Metric | Exploration | Pattern-driven |
-|--------|-------------|----------------|
-| Input tokens | 142 | 10 |
-| Output tokens | 3,700 | 262 |
-| **Total** | **3,842** | **272** |
-| **Savings** | — | **-93% (14x fewer)** |
-
-### Why Pattern-Driven Works
-1. **Clear instructions** — Agent doesn't experiment; executes precisely
-2. **No failed attempts** — No retry loops, no filter exploration
-3. **Cache efficiency** — Previous session context cached (99% hit rate)
-4. **Minimal output** — Agent reports only needed headlines, not entire parsed tree
-
-### For Production Use
-- **Scraping workflows**: Use the pattern above for headlines, titles, links
-- **Form automation**: Still use interactive snapshots + actions (pattern is for read-only tasks)
-- **Repeated jobs**: Save the curl pattern in agent instructions; it's reusable across sites
-- **API compatibility**: The `3 second + full jq filter` pattern works on any site
-
-### Example: Reusable Template
-
-Save this in your agent system prompt:
-
-```bash
-# Always use this template for scraping
-curl -X POST http://localhost:9867/navigate \
-  -H "Content-Type: application/json" \
-  -d '{"url": "TARGET_URL"}' && \
-sleep 3 && \
-curl http://localhost:9867/snapshot | jq '.nodes[] | select(.name | length > MIN_LENGTH) | .name' | head -N_RESULTS
-```
-
-Replace:
-- `TARGET_URL` with the site to scrape
-- `MIN_LENGTH` with the minimum name length (15 for headlines, 10 for general)
-- `N_RESULTS` with number of results needed
-
-This eliminates agent guesswork and cuts token usage by 90%+.
+For detailed findings, system prompt templates, and site-specific notes, see [docs/agent-optimization.md](../../docs/agent-optimization.md).
 
 ## Tips
 
