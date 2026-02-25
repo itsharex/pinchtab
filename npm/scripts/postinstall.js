@@ -4,9 +4,15 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const GITHUB_REPO = 'pinchtab/pinchtab';
-const VERSION = '0.7.0';
+
+function getVersion() {
+  const pkgPath = path.join(__dirname, '..', 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+  return pkg.version;
+}
 
 function detectPlatform() {
   const platform = process.platform;
@@ -40,7 +46,65 @@ function getBinDir() {
   return path.join(os.homedir(), '.pinchtab', 'bin');
 }
 
-async function downloadBinary(platform) {
+function fetchUrl(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (response) => {
+      if (response.statusCode === 404) {
+        reject(new Error(`Not found: ${url}`));
+        return;
+      }
+
+      if (response.statusCode !== 200) {
+        reject(new Error(`HTTP ${response.statusCode}: ${url}`));
+        return;
+      }
+
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve(Buffer.concat(chunks)));
+      response.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+async function downloadChecksums(version) {
+  const url = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/checksums.txt`;
+
+  try {
+    const data = await fetchUrl(url);
+    const checksums = new Map();
+
+    data
+      .toString('utf-8')
+      .trim()
+      .split('\n')
+      .forEach((line) => {
+        const parts = line.split(/\s+/);
+        if (parts.length >= 2) {
+          const hash = parts[0];
+          const filename = parts[1];
+          checksums.set(filename.trim(), hash.trim());
+        }
+      });
+
+    return checksums;
+  } catch (err) {
+    throw new Error(
+      `Failed to download checksums: ${err.message}\n` +
+      `Ensure v${version} is released on GitHub with checksums.txt`
+    );
+  }
+}
+
+function verifySHA256(filePath, expectedHash) {
+  const hash = crypto.createHash('sha256');
+  const data = fs.readFileSync(filePath);
+  hash.update(data);
+  const actualHash = hash.digest('hex');
+  return actualHash.toLowerCase() === expectedHash.toLowerCase();
+}
+
+async function downloadBinary(platform, version) {
   const binaryName = getBinaryName(platform);
   const binDir = getBinDir();
   const binaryPath = path.join(binDir, binaryName);
@@ -51,62 +115,84 @@ async function downloadBinary(platform) {
     return;
   }
 
-  const downloadUrl = `https://github.com/${GITHUB_REPO}/releases/download/v${VERSION}/${binaryName}`;
+  // Fetch checksums
+  console.log(`Downloading Pinchtab ${version} for ${platform.os}-${platform.arch}...`);
+  const checksums = await downloadChecksums(version);
 
-  console.log(`Downloading Pinchtab ${VERSION} for ${platform.os}-${platform.arch}...`);
+  if (!checksums.has(binaryName)) {
+    throw new Error(
+      `Binary not found in checksums: ${binaryName}\n` +
+      `Available: ${Array.from(checksums.keys()).join(', ')}`
+    );
+  }
+
+  const expectedHash = checksums.get(binaryName);
+  const downloadUrl = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${binaryName}`;
 
   // Ensure directory exists
   if (!fs.existsSync(binDir)) {
     fs.mkdirSync(binDir, { recursive: true });
   }
 
+  // Download binary
   return new Promise((resolve, reject) => {
-    https
-      .get(downloadUrl, (response) => {
-        if (response.statusCode === 404) {
-          console.warn(
-            `⚠ Binary not found at ${downloadUrl}. Make sure v${VERSION} is released on GitHub.`
-          );
-          resolve();
-          return;
-        }
+    console.log(`Downloading from ${downloadUrl}...`);
 
-        if (response.statusCode !== 200) {
-          console.warn(`⚠ Download failed with status ${response.statusCode}`);
-          resolve();
-          return;
-        }
+    const file = fs.createWriteStream(binaryPath);
 
-        const file = fs.createWriteStream(binaryPath);
-        response.pipe(file);
+    https.get(downloadUrl, (response) => {
+      if (response.statusCode !== 200) {
+        fs.unlink(binaryPath, () => {});
+        reject(new Error(`HTTP ${response.statusCode}: ${downloadUrl}`));
+        return;
+      }
 
-        file.on('finish', () => {
-          file.close();
-          fs.chmodSync(binaryPath, 0o755);
-          console.log(`✓ Downloaded to ${binaryPath}`);
-          resolve();
-        });
+      response.pipe(file);
 
-        file.on('error', (err) => {
+      file.on('finish', () => {
+        file.close();
+
+        // Verify checksum
+        if (!verifySHA256(binaryPath, expectedHash)) {
           fs.unlink(binaryPath, () => {});
-          reject(err);
-        });
-      })
-      .on('error', (err) => {
-        console.warn(`⚠ Failed to download: ${err.message}`);
+          reject(
+            new Error(
+              `Checksum verification failed for ${binaryName}\n` +
+              `Downloaded file may be corrupted. Please try installing again.`
+            )
+          );
+          return;
+        }
+
+        // Make executable
+        fs.chmodSync(binaryPath, 0o755);
+        console.log(`✓ Verified and installed: ${binaryPath}`);
         resolve();
       });
+
+      file.on('error', (err) => {
+        fs.unlink(binaryPath, () => {});
+        reject(err);
+      });
+    }).on('error', reject);
   });
 }
 
-// Run download
-const platform = detectPlatform();
-downloadBinary(platform)
-  .then(() => {
+// Main
+(async () => {
+  try {
+    const platform = detectPlatform();
+    const version = getVersion();
+    await downloadBinary(platform, version);
     console.log('✓ Pinchtab setup complete');
     process.exit(0);
-  })
-  .catch((err) => {
-    console.error('✗ Setup error:', err.message);
+  } catch (err) {
+    console.error('\n✗ Failed to setup Pinchtab:');
+    console.error(`  ${(err instanceof Error ? err.message : String(err)).split('\n').join('\n  ')}`);
+    console.error('\nTroubleshooting:');
+    console.error('  • Check your internet connection');
+    console.error('  • Verify the release exists: https://github.com/pinchtab/pinchtab/releases');
+    console.error('  • Try again: npm rebuild pinchtab');
     process.exit(1);
-  });
+  }
+})();

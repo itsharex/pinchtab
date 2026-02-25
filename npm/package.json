@@ -7,6 +7,9 @@
   "bin": {
     "pinchtab": "bin/pinchtab"
   },
+  "repository": "github:pinchtab/pinchtab",
+  "homepage": "https://github.com/pinchtab/pinchtab#readme",
+  "bugs": "https://github.com/pinchtab/pinchtab/issues",
   "scripts": {
     "build": "tsc",
     "test": "node --test dist/tests/integration.test.js",
@@ -16,14 +19,19 @@
   "files": [
     "dist",
     "bin",
-    "scripts"
+    "scripts",
+    "LICENSE"
   ],
   "keywords": [
     "browser",
     "automation",
     "api",
     "agent",
-    "ai"
+    "ai",
+    "headless",
+    "chromedp",
+    "stealth",
+    "ai-agent"
   ],
   "author": "Mario <mario@giagolab.com>",
   "license": "MIT",
