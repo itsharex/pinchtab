@@ -39,26 +39,33 @@ git describe --tags                # latest tag
 
 ## Pre-Release Checklist
 
-Before tagging, verify goreleaser config:
+Goreleaser is already configured correctly. Verify before tagging:
 
 ```bash
-# 1. Check .goreleaser.yml has binaries section (required for npm)
-grep -A 5 "^builds:" .goreleaser.yml
+# 1. Check builds section (compiles for all platforms)
+grep -A 8 "^builds:" .goreleaser.yml
+# Should output: linux/darwin/windows + amd64/arm64
 
-# 2. Verify checksums enabled (required for postinstall verification)
+# 2. Check archives use binary format (required for npm)
+grep -A 5 "^archives:" .goreleaser.yml
+# Should show: format: binary (not tar/zip)
+
+# 3. Verify checksums enabled
 grep "checksum:" .goreleaser.yml
+# Should output: name_template: checksums.txt
 
-# 3. Check release config points to GitHub
+# 4. Check release config
 grep -A 2 "^release:" .goreleaser.yml
-
-# 4. (optional) Test locally with goreleaser
-goreleaser release --skip=publish --clean
+# Should output: GitHub owner/repo
 ```
 
-**Must have:**
-- ✅ `builds:` section with all platforms
-- ✅ `checksum:` section (generates checksums.txt)
-- ✅ `release:` section with GitHub owner
+**Configuration status:**
+- ✅ `builds:` section compiles all platforms (darwin-arm64, darwin-amd64, linux-arm64, linux-amd64, windows-amd64, windows-arm64)
+- ✅ `archives:` outputs binaries directly: `pinchtab-darwin-arm64`, `pinchtab-linux-x64`, etc.
+- ✅ `checksum:` generates `checksums.txt` (used by npm postinstall verification)
+- ✅ `release:` points to GitHub (uploads everything automatically)
+
+**Ready to release.** Just tag and push.
 
 ## Releasing
 
