@@ -26,6 +26,9 @@ on:
         description: 'Tag to release (e.g. v0.2.0)'
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Release Binaries
@@ -94,7 +97,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: npm
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Build TypeScript
         working-directory: npm

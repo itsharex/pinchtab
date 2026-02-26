@@ -1,31 +1,22 @@
-# Source files
+# Source TypeScript files (not shipped)
 src/
 tests/
-*.ts
 tsconfig.json
 
-# Build artifacts
-dist/
+# Build artifacts we don't ship
 *.map
 
-# Dev dependencies
-node_modules/
-package-lock.json
-.git
-.github
-.gitignore
-.npmignore
-
-# Docs
-*.md
-!LICENSE
-
-# Config
-.gitignore
+# Development config/env
 .env*
-
-# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# Git / repo files
+.git
+.github
+.gitignore
+
+# Dev dependencies are not shipped (handled by package.json files array)
+# Only ship: dist/src/*.js, dist/src/*.d.ts, bin/, scripts/postinstall.js, LICENSE
