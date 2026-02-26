@@ -11,20 +11,25 @@ import (
 // ST1: Webdriver is hidden (undefined)
 func TestStealth_WebdriverUndefined(t *testing.T) {
 	navigate(t, "https://example.com")
-	// Wait briefly for stealth injection to complete
-	// Chrome's navigator.webdriver property is patched by stealth.js on page load,
-	// but there can be a race condition between navigation and injection
-	time.Sleep(500 * time.Millisecond)
-	code, body := httpPost(t, "/evaluate", map[string]string{
-		"expression": "navigator.webdriver === undefined",
-	})
-	if code != 200 {
-		t.Fatalf("expected 200, got %d", code)
+	// Poll for stealth injection to complete instead of fixed sleep
+	// This is more reliable than a fixed wait across different CI runners
+	for retry := 0; retry < 10; retry++ {
+		code, body := httpPost(t, "/evaluate", map[string]string{
+			"expression": "navigator.webdriver === undefined",
+		})
+		if code != 200 {
+			t.Fatalf("expected 200, got %d", code)
+		}
+		result := jsonField(t, body, "result")
+		if result == "true" {
+			// Success - webdriver is hidden
+			return
+		}
+		// Still not injected, wait a bit and retry
+		time.Sleep(100 * time.Millisecond)
 	}
-	result := jsonField(t, body, "result")
-	if result != "true" {
-		t.Errorf("expected result 'true' (webdriver undefined), got %q", result)
-	}
+	// If we get here, injection failed
+	t.Error("stealth injection failed: navigator.webdriver still defined after 1 second")
 }
 
 // ST2: Canvas can be used (skipped - canvas fingerprint noise unreliable in headless CI)
@@ -35,35 +40,47 @@ func TestStealth_WebdriverUndefined(t *testing.T) {
 // ST3: Plugins are present
 func TestStealth_PluginsPresent(t *testing.T) {
 	navigate(t, "https://example.com")
-	// Wait briefly for stealth injection to complete
-	time.Sleep(500 * time.Millisecond)
-	code, body := httpPost(t, "/evaluate", map[string]string{
-		"expression": "navigator.plugins.length > 0",
-	})
-	if code != 200 {
-		t.Fatalf("expected 200, got %d", code)
+	// Poll for stealth injection instead of fixed sleep
+	for retry := 0; retry < 10; retry++ {
+		code, body := httpPost(t, "/evaluate", map[string]string{
+			"expression": "navigator.plugins.length > 0",
+		})
+		if code != 200 {
+			t.Fatalf("expected 200, got %d", code)
+		}
+		result := jsonField(t, body, "result")
+		if result == "true" {
+			// Success - plugins are spoofed
+			return
+		}
+		// Still not injected, wait a bit and retry
+		time.Sleep(100 * time.Millisecond)
 	}
-	result := jsonField(t, body, "result")
-	if result != "true" {
-		t.Errorf("expected result 'true' (plugins present), got %q", result)
-	}
+	// If we get here, injection failed
+	t.Error("stealth injection failed: navigator.plugins still empty after 1 second")
 }
 
 // ST4: Chrome runtime is present
 func TestStealth_ChromeRuntimePresent(t *testing.T) {
 	navigate(t, "https://example.com")
-	// Wait briefly for stealth injection to complete
-	time.Sleep(500 * time.Millisecond)
-	code, body := httpPost(t, "/evaluate", map[string]string{
-		"expression": "!!window.chrome.runtime",
-	})
-	if code != 200 {
-		t.Fatalf("expected 200, got %d", code)
+	// Poll for stealth injection instead of fixed sleep
+	for retry := 0; retry < 10; retry++ {
+		code, body := httpPost(t, "/evaluate", map[string]string{
+			"expression": "!!window.chrome.runtime",
+		})
+		if code != 200 {
+			t.Fatalf("expected 200, got %d", code)
+		}
+		result := jsonField(t, body, "result")
+		if result == "true" {
+			// Success - chrome.runtime is spoofed
+			return
+		}
+		// Still not injected, wait a bit and retry
+		time.Sleep(100 * time.Millisecond)
 	}
-	result := jsonField(t, body, "result")
-	if result != "true" {
-		t.Errorf("expected result 'true' (chrome.runtime present), got %q", result)
-	}
+	// If we get here, injection failed
+	t.Error("stealth injection failed: window.chrome.runtime still missing after 1 second")
 }
 
 // ST5: Fingerprint rotation with specific OS
