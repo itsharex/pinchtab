@@ -46,13 +46,17 @@ jobs:
       - name: Check for source .ts files in package
         working-directory: npm
         run: |
-          SOURCES=$(npm pack --dry-run 2>&1 | grep -E "src/.*\.ts$" | grep -v "\.d\.ts" || true)
+          # Create the tarball and check its actual contents
+          npm pack > /dev/null 2>&1
+          TARBALL=$(ls -t pinchtab-*.tgz | head -1)
+          SOURCES=$(tar -tzf "$TARBALL" | grep -E "\.ts$" | grep -v "\.d\.ts" || true)
           if [ -n "$SOURCES" ]; then
             echo "❌ ERROR: Source .ts files in package:"
             echo "$SOURCES"
             exit 1
           fi
-          echo "✅ No source .ts files in package"
+          echo "✅ No source .ts files in tarball"
+          rm "$TARBALL"
 
       - name: Check for test files in package
         working-directory: npm
