@@ -55,43 +55,66 @@ function getBinDir() {
   return path.join(os.homedir(), '.pinchtab', 'bin');
 }
 
-function fetchUrl(url) {
+function fetchUrl(url, maxRedirects = 5) {
   return new Promise((resolve, reject) => {
-    const httpsOptions = new URL(url);
+    const attemptFetch = (currentUrl, redirectsRemaining) => {
+      const httpsOptions = new URL(currentUrl);
 
-    // Proxy support for corporate environments
-    if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) {
-      const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
-      try {
-        const proxy = new URL(proxyUrl);
-        httpsOptions.agent = new https.Agent({
-          host: proxy.hostname,
-          port: proxy.port,
-          keepAlive: true,
-        });
-      } catch (err) {
-        console.warn(`Warning: Invalid proxy URL ${proxyUrl}, ignoring`);
+      // Proxy support for corporate environments
+      if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) {
+        const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+        try {
+          const proxy = new URL(proxyUrl);
+          httpsOptions.agent = new https.Agent({
+            host: proxy.hostname,
+            port: proxy.port,
+            keepAlive: true,
+          });
+        } catch (err) {
+          console.warn(`Warning: Invalid proxy URL ${proxyUrl}, ignoring`);
+        }
       }
-    }
 
-    https
-      .get(url, httpsOptions, (response) => {
-        if (response.statusCode === 404) {
-          reject(new Error(`Not found: ${url}`));
-          return;
-        }
+      https
+        .get(currentUrl, httpsOptions, (response) => {
+          // Handle redirects (301, 302, 307, 308)
+          if ([301, 302, 307, 308].includes(response.statusCode)) {
+            if (redirectsRemaining <= 0) {
+              reject(new Error(`Too many redirects from ${currentUrl}`));
+              return;
+            }
 
-        if (response.statusCode !== 200) {
-          reject(new Error(`HTTP ${response.statusCode}: ${url}`));
-          return;
-        }
+            const redirectUrl = response.headers.location;
+            if (!redirectUrl) {
+              reject(new Error(`Redirect without location header from ${currentUrl}`));
+              return;
+            }
 
-        const chunks = [];
-        response.on('data', (chunk) => chunks.push(chunk));
-        response.on('end', () => resolve(Buffer.concat(chunks)));
-        response.on('error', reject);
-      })
-      .on('error', reject);
+            // Consume the response stream to avoid memory leaks
+            response.resume();
+            attemptFetch(redirectUrl, redirectsRemaining - 1);
+            return;
+          }
+
+          if (response.statusCode === 404) {
+            reject(new Error(`Not found: ${currentUrl}`));
+            return;
+          }
+
+          if (response.statusCode !== 200) {
+            reject(new Error(`HTTP ${response.statusCode}: ${currentUrl}`));
+            return;
+          }
+
+          const chunks = [];
+          response.on('data', (chunk) => chunks.push(chunk));
+          response.on('end', () => resolve(Buffer.concat(chunks)));
+          response.on('error', reject);
+        })
+        .on('error', reject);
+    };
+
+    attemptFetch(url, maxRedirects);
   });
 }
 
@@ -169,44 +192,72 @@ async function downloadBinary(platform, version) {
     console.log(`Downloading from ${downloadUrl}...`);
 
     const file = fs.createWriteStream(binaryPath);
+    let currentUrl = downloadUrl;
+    let redirectCount = 0;
+    const maxRedirects = 5;
 
-    https
-      .get(downloadUrl, (response) => {
-        if (response.statusCode !== 200) {
-          fs.unlink(binaryPath, () => {});
-          reject(new Error(`HTTP ${response.statusCode}: ${downloadUrl}`));
-          return;
-        }
+    const performDownload = (url) => {
+      https
+        .get(url, (response) => {
+          // Handle redirects (301, 302, 307, 308)
+          if ([301, 302, 307, 308].includes(response.statusCode)) {
+            if (redirectCount >= maxRedirects) {
+              fs.unlink(binaryPath, () => {});
+              reject(new Error(`Too many redirects downloading ${downloadUrl}`));
+              return;
+            }
 
-        response.pipe(file);
+            const redirectUrl = response.headers.location;
+            if (!redirectUrl) {
+              fs.unlink(binaryPath, () => {});
+              reject(new Error(`Redirect without location header from ${url}`));
+              return;
+            }
 
-        file.on('finish', () => {
-          file.close();
-
-          // Verify checksum
-          if (!verifySHA256(binaryPath, expectedHash)) {
-            fs.unlink(binaryPath, () => {});
-            reject(
-              new Error(
-                `Checksum verification failed for ${binaryName}\n` +
-                  `Downloaded file may be corrupted. Please try installing again.`
-              )
-            );
+            redirectCount++;
+            response.resume(); // Consume response stream
+            performDownload(redirectUrl);
             return;
           }
 
-          // Make executable
-          fs.chmodSync(binaryPath, 0o755);
-          console.log(`✓ Verified and installed: ${binaryPath}`);
-          resolve();
-        });
+          if (response.statusCode !== 200) {
+            fs.unlink(binaryPath, () => {});
+            reject(new Error(`HTTP ${response.statusCode}: ${url}`));
+            return;
+          }
 
-        file.on('error', (err) => {
-          fs.unlink(binaryPath, () => {});
-          reject(err);
-        });
-      })
-      .on('error', reject);
+          response.pipe(file);
+
+          file.on('finish', () => {
+            file.close();
+
+            // Verify checksum
+            if (!verifySHA256(binaryPath, expectedHash)) {
+              fs.unlink(binaryPath, () => {});
+              reject(
+                new Error(
+                  `Checksum verification failed for ${binaryName}\n` +
+                    `Downloaded file may be corrupted. Please try installing again.`
+                )
+              );
+              return;
+            }
+
+            // Make executable
+            fs.chmodSync(binaryPath, 0o755);
+            console.log(`✓ Verified and installed: ${binaryPath}`);
+            resolve();
+          });
+
+          file.on('error', (err) => {
+            fs.unlink(binaryPath, () => {});
+            reject(err);
+          });
+        })
+        .on('error', reject);
+    };
+
+    performDownload(currentUrl);
   });
 }
 
