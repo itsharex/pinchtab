@@ -11,10 +11,10 @@ import (
 // ST1: Webdriver is hidden (undefined)
 func TestStealth_WebdriverUndefined(t *testing.T) {
 	navigate(t, "https://example.com")
-	// Wait briefly for stealth injection to complete
-	// Chrome's navigator.webdriver property is patched by stealth.js on page load,
-	// but there can be a race condition between navigation and injection
-	time.Sleep(500 * time.Millisecond)
+	// Wait for stealth injection to complete
+	// On slow CI runners, injection may take longer than on local machines.
+	// 1 second gives stealth.js time to hook navigator.webdriver via AddScriptToEvaluateOnNewDocument
+	time.Sleep(1 * time.Second)
 	code, body := httpPost(t, "/evaluate", map[string]string{
 		"expression": "navigator.webdriver === undefined",
 	})
@@ -35,8 +35,8 @@ func TestStealth_WebdriverUndefined(t *testing.T) {
 // ST3: Plugins are present
 func TestStealth_PluginsPresent(t *testing.T) {
 	navigate(t, "https://example.com")
-	// Wait briefly for stealth injection to complete
-	time.Sleep(500 * time.Millisecond)
+	// Wait for stealth injection to complete (increased for slower CI runners)
+	time.Sleep(1 * time.Second)
 	code, body := httpPost(t, "/evaluate", map[string]string{
 		"expression": "navigator.plugins.length > 0",
 	})
@@ -52,8 +52,8 @@ func TestStealth_PluginsPresent(t *testing.T) {
 // ST4: Chrome runtime is present
 func TestStealth_ChromeRuntimePresent(t *testing.T) {
 	navigate(t, "https://example.com")
-	// Wait briefly for stealth injection to complete
-	time.Sleep(500 * time.Millisecond)
+	// Wait for stealth injection to complete (increased for slower CI runners)
+	time.Sleep(1 * time.Second)
 	code, body := httpPost(t, "/evaluate", map[string]string{
 		"expression": "!!window.chrome.runtime",
 	})
