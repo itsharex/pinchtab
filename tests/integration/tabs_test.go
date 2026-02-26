@@ -96,14 +96,18 @@ func TestTabs_MaxTabs(t *testing.T) {
 	initialTabs := len(initialResp["tabs"].([]any))
 
 	// Try to create 20 tabs and verify they are created or error appropriately
-	createdCount := 0
+	createdTabIDs := []string{}
 	for i := 0; i < 20; i++ {
-		code, _ := httpPost(t, "/tab", map[string]string{
+		code, body := httpPost(t, "/tab", map[string]string{
 			"action": "new",
 			"url":    "https://example.com",
 		})
 		if code == 200 {
-			createdCount++
+			var newTab map[string]any
+			_ = json.Unmarshal(body, &newTab)
+			if tabID, ok := newTab["tabId"].(string); ok {
+				createdTabIDs = append(createdTabIDs, tabID)
+			}
 		} else if code >= 400 {
 			// Server returned an error (likely hit limit)
 			break
@@ -121,5 +125,14 @@ func TestTabs_MaxTabs(t *testing.T) {
 	// Verify tab list changed or was already at limit
 	if len(finalTabs) < initialTabs {
 		t.Error("expected tab count to not decrease")
+	}
+
+	// IMPORTANT: Clean up created tabs to avoid affecting subsequent tests
+	// This is critical for test isolation in the shared browser instance
+	for _, tabID := range createdTabIDs {
+		_, _ = httpPost(t, "/tab", map[string]string{
+			"action": "close",
+			"tabId":  tabID,
+		})
 	}
 }
