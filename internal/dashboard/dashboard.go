@@ -310,8 +310,8 @@ func (d *Dashboard) RegisterHandlers(mux *http.ServeMux) {
 	mux.Handle("GET /assets/", d.withNoCache(fileServer))
 	mux.Handle("GET /pinchtab-headed-192.png", d.withNoCache(fileServer))
 
-	// SPA: serve dashboard.html for root path only (API routes handled elsewhere)
-	mux.Handle("GET /{$}", d.withNoCache(http.HandlerFunc(d.handleDashboardUI)))
+	// SPA: serve dashboard.html for all other routes
+	mux.Handle("GET /", d.withNoCache(http.HandlerFunc(d.handleDashboardUI)))
 }
 
 func (d *Dashboard) handleAgents(w http.ResponseWriter, r *http.Request) {
