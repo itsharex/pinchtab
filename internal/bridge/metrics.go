@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"time"
 
 	"github.com/chromedp/cdproto/performance"
 	"github.com/chromedp/cdproto/target"
@@ -48,9 +49,9 @@ func (b *Bridge) GetAggregatedMemoryMetrics() (*MemoryMetrics, error) {
 		if t.Type != "page" {
 			continue
 		}
-		// Get metrics directly from target context
-		mem, err := b.getMetricsForTarget(string(t.TargetID))
-		if err != nil || mem == nil {
+		// Try to get metrics - skip on any error
+		mem := b.safeGetMetricsForTarget(string(t.TargetID))
+		if mem == nil {
 			continue
 		}
 		total.JSHeapUsedMB += mem.JSHeapUsedMB
@@ -63,11 +64,33 @@ func (b *Bridge) GetAggregatedMemoryMetrics() (*MemoryMetrics, error) {
 	return total, nil
 }
 
+// safeGetMetricsForTarget safely gets metrics, returning nil on any error
+func (b *Bridge) safeGetMetricsForTarget(targetID string) *MemoryMetrics {
+	mem, err := b.getMetricsForTarget(targetID)
+	if err != nil {
+		return nil
+	}
+	return mem
+}
+
 // getMetricsForTarget gets metrics for a raw CDP target ID
-func (b *Bridge) getMetricsForTarget(targetID string) (*MemoryMetrics, error) {
+func (b *Bridge) getMetricsForTarget(targetID string) (result *MemoryMetrics, err error) {
+	// Recover from panics - some targets may not support metrics
+	defer func() {
+		if r := recover(); r != nil {
+			result = nil
+			err = nil // swallow error, just skip this target
+		}
+	}()
+
+	// Create context with timeout to avoid hanging
 	ctx, cancel := chromedp.NewContext(b.BrowserCtx, chromedp.WithTargetID(target.ID(targetID)))
 	defer cancel()
-	return getMetricsFromContext(ctx)
+
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer timeoutCancel()
+
+	return getMetricsFromContext(timeoutCtx)
 }
 
 func getMetricsFromContext(ctx context.Context) (*MemoryMetrics, error) {
