@@ -839,7 +839,7 @@ func TestBenchmarkStudy(t *testing.T) {
 		if len(shortQ) > 29 {
 			shortQ = shortQ[:26] + "..."
 		}
-		winner := "tie"
+		var winner string
 		if !lex.hit1 && emb.hit1 {
 			winner = "Embedding"
 		} else if lex.hit1 && !emb.hit1 {
