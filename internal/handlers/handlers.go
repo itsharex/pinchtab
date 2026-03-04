@@ -2,7 +2,9 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/pinchtab/pinchtab/internal/assets"
 	"github.com/pinchtab/pinchtab/internal/bridge"
@@ -20,11 +22,15 @@ type Handlers struct {
 	Orchestrator bridge.OrchestratorService
 	IdMgr        *idutil.Manager
 	Matcher      semantic.ElementMatcher
+	IntentCache  *semantic.IntentCache
+	Recovery     *semantic.RecoveryEngine
 }
 
 func New(b bridge.BridgeAPI, cfg *config.RuntimeConfig, p bridge.ProfileService, d *dashboard.Dashboard, o bridge.OrchestratorService) *Handlers {
 	matcher := semantic.NewCombinedMatcher(semantic.NewHashingEmbedder(128))
-	return &Handlers{
+	intentCache := semantic.NewIntentCache(200, 10*time.Minute)
+
+	h := &Handlers{
 		Bridge:       b,
 		Config:       cfg,
 		Profiles:     p,
@@ -32,7 +38,46 @@ func New(b bridge.BridgeAPI, cfg *config.RuntimeConfig, p bridge.ProfileService,
 		Orchestrator: o,
 		IdMgr:        idutil.NewManager(),
 		Matcher:      matcher,
+		IntentCache:  intentCache,
 	}
+
+	// Wire up the recovery engine with callbacks that delegate back to
+	// the handler's bridge without introducing circular imports.
+	h.Recovery = semantic.NewRecoveryEngine(
+		semantic.DefaultRecoveryConfig(),
+		matcher,
+		intentCache,
+		// SnapshotRefresher
+		func(ctx context.Context, tabID string) error {
+			h.refreshRefCache(ctx, tabID)
+			return nil
+		},
+		// NodeIDResolver
+		func(tabID, ref string) (int64, bool) {
+			cache := h.Bridge.GetRefCache(tabID)
+			if cache == nil {
+				return 0, false
+			}
+			nid, ok := cache.Refs[ref]
+			return nid, ok
+		},
+		// DescriptorBuilder
+		func(tabID string) []semantic.ElementDescriptor {
+			nodes := h.resolveSnapshotNodes(tabID)
+			descs := make([]semantic.ElementDescriptor, len(nodes))
+			for i, n := range nodes {
+				descs[i] = semantic.ElementDescriptor{
+					Ref:   n.Ref,
+					Role:  n.Role,
+					Name:  n.Name,
+					Value: n.Value,
+				}
+			}
+			return descs
+		},
+	)
+
+	return h
 }
 
 // ensureChrome ensures Chrome is initialized before handling requests that need it

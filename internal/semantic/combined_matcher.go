@@ -46,6 +46,14 @@ func (c *CombinedMatcher) Find(ctx context.Context, query string, elements []Ele
 		opts.TopK = 3
 	}
 
+	// Per-request weight overrides; fall back to matcher defaults.
+	lexW := c.LexicalWeight
+	embW := c.EmbeddingWeight
+	if opts.LexicalWeight > 0 || opts.EmbeddingWeight > 0 {
+		lexW = opts.LexicalWeight
+		embW = opts.EmbeddingWeight
+	}
+
 	// Use a lower internal threshold to capture candidates from both matchers
 	// that might miss the final threshold individually but pass when combined.
 	internalOpts := FindOptions{
@@ -107,22 +115,29 @@ func (c *CombinedMatcher) Find(ctx context.Context, query string, elements []Ele
 	}
 
 	type scored struct {
-		ref   string
-		score float64
-		el    ElementDescriptor
+		ref      string
+		score    float64
+		el       ElementDescriptor
+		lexScore float64
+		embScore float64
 	}
 
 	var candidates []scored
 	for ref := range allRefs {
 		ls := lexScores[ref]
 		es := embScores[ref]
-		combined := c.LexicalWeight*ls + c.EmbeddingWeight*es
+		combined := lexW*ls + embW*es
 		if combined >= opts.Threshold {
-			candidates = append(candidates, scored{
+			s := scored{
 				ref:   ref,
 				score: combined,
 				el:    refToElem[ref],
-			})
+			}
+			if opts.Explain {
+				s.lexScore = ls
+				s.embScore = es
+			}
+			candidates = append(candidates, s)
 		}
 	}
 
@@ -141,12 +156,20 @@ func (c *CombinedMatcher) Find(ctx context.Context, query string, elements []Ele
 	}
 
 	for _, cand := range candidates {
-		result.Matches = append(result.Matches, ElementMatch{
+		em := ElementMatch{
 			Ref:   cand.ref,
 			Score: cand.score,
 			Role:  cand.el.Role,
 			Name:  cand.el.Name,
-		})
+		}
+		if opts.Explain {
+			em.Explain = &MatchExplain{
+				LexicalScore:   cand.lexScore,
+				EmbeddingScore: cand.embScore,
+				Composite:      cand.el.Composite(),
+			}
+		}
+		result.Matches = append(result.Matches, em)
 	}
 
 	if len(result.Matches) > 0 {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pinchtab/pinchtab/internal/bridge"
@@ -12,10 +13,13 @@ import (
 )
 
 type findRequest struct {
-	Query     string  `json:"query"`
-	TabID     string  `json:"tabId,omitempty"`
-	Threshold float64 `json:"threshold,omitempty"`
-	TopK      int     `json:"topK,omitempty"`
+	Query           string  `json:"query"`
+	TabID           string  `json:"tabId,omitempty"`
+	Threshold       float64 `json:"threshold,omitempty"`
+	TopK            int     `json:"topK,omitempty"`
+	LexicalWeight   float64 `json:"lexicalWeight,omitempty"`
+	EmbeddingWeight float64 `json:"embeddingWeight,omitempty"`
+	Explain         bool    `json:"explain,omitempty"`
 }
 
 type findResponse struct {
@@ -57,6 +61,7 @@ func (h *Handlers) HandleFind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Query = strings.TrimSpace(req.Query)
 	if req.Query == "" {
 		web.Error(w, 400, fmt.Errorf("missing required field 'query'"))
 		return
@@ -78,7 +83,13 @@ func (h *Handlers) HandleFind(w http.ResponseWriter, r *http.Request) {
 	// Try cached snapshot first; auto-fetch if not available.
 	nodes := h.resolveSnapshotNodes(resolvedTabID)
 	if len(nodes) == 0 {
-		web.Error(w, 500, fmt.Errorf("no elements found in snapshot for tab %s", resolvedTabID))
+		// Auto-refresh: take a fresh snapshot via CDP.
+		ctx, _, _ := h.Bridge.TabContext(resolvedTabID)
+		h.refreshRefCache(ctx, resolvedTabID)
+		nodes = h.resolveSnapshotNodes(resolvedTabID)
+	}
+	if len(nodes) == 0 {
+		web.Error(w, 500, fmt.Errorf("no elements found in snapshot for tab %s — navigate first", resolvedTabID))
 		return
 	}
 
@@ -95,8 +106,11 @@ func (h *Handlers) HandleFind(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 	result, err := h.Matcher.Find(r.Context(), req.Query, descs, semantic.FindOptions{
-		Threshold: req.Threshold,
-		TopK:      req.TopK,
+		Threshold:       req.Threshold,
+		TopK:            req.TopK,
+		LexicalWeight:   req.LexicalWeight,
+		EmbeddingWeight: req.EmbeddingWeight,
+		Explain:         req.Explain,
 	})
 	if err != nil {
 		web.Error(w, 500, fmt.Errorf("matcher error: %w", err))
@@ -117,14 +131,32 @@ func (h *Handlers) HandleFind(w http.ResponseWriter, r *http.Request) {
 		resp.Matches = []semantic.ElementMatch{}
 	}
 
+	// Cache intent for recovery: store the query + best-match descriptor
+	// so the recovery engine can reconstruct a search if the ref goes stale.
+	if result.BestRef != "" && h.Recovery != nil {
+		var bestDesc semantic.ElementDescriptor
+		for _, d := range descs {
+			if d.Ref == result.BestRef {
+				bestDesc = d
+				break
+			}
+		}
+		h.Recovery.RecordIntent(resolvedTabID, result.BestRef, semantic.IntentEntry{
+			Query:      req.Query,
+			Descriptor: bestDesc,
+			Score:      result.BestScore,
+			Confidence: resp.Confidence,
+			Strategy:   result.Strategy,
+			CachedAt:   time.Now(),
+		})
+	}
+
 	web.JSON(w, 200, resp)
 }
 
 // resolveSnapshotNodes returns cached A11yNodes for the tab, or an empty
-// slice if no cache is available. The handler's auto-snapshot fetch is
-// limited to the existing RefCache — a full CDP-based auto-fetch is left
-// for future work since it requires chromedp context wiring that would
-// tightly couple this handler to CDP internals.
+// slice if no cache is available. The caller should use refreshRefCache
+// to auto-fetch a fresh snapshot via CDP when this returns nil.
 func (h *Handlers) resolveSnapshotNodes(tabID string) []bridge.A11yNode {
 	cache := h.Bridge.GetRefCache(tabID)
 	if cache != nil && len(cache.Nodes) > 0 {

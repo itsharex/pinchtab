@@ -18,6 +18,14 @@ type ElementMatcher interface {
 type FindOptions struct {
 	Threshold float64
 	TopK      int
+
+	// Per-request weight overrides (optional). If both are zero the
+	// matcher's default weights are used.
+	LexicalWeight   float64
+	EmbeddingWeight float64
+
+	// Explain enables verbose per-match scoring breakdown.
+	Explain bool
 }
 
 // FindResult holds the output of a Find operation.
@@ -41,4 +49,14 @@ type ElementMatch struct {
 	Score float64 `json:"score"`
 	Role  string  `json:"role,omitempty"`
 	Name  string  `json:"name,omitempty"`
+
+	// Explain is populated when FindOptions.Explain is true.
+	Explain *MatchExplain `json:"explain,omitempty"`
+}
+
+// MatchExplain exposes the per-strategy score breakdown for debugging.
+type MatchExplain struct {
+	LexicalScore   float64 `json:"lexical_score"`
+	EmbeddingScore float64 `json:"embedding_score"`
+	Composite      string  `json:"composite"`
 }

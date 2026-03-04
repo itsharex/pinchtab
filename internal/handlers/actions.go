@@ -13,6 +13,7 @@ import (
 
 	"github.com/chromedp/chromedp"
 	"github.com/pinchtab/pinchtab/internal/bridge"
+	"github.com/pinchtab/pinchtab/internal/semantic"
 	"github.com/pinchtab/pinchtab/internal/web"
 )
 
@@ -138,6 +139,11 @@ func (h *Handlers) HandleAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Cache intent before execution so recovery can reconstruct the query.
+	if req.Ref != "" && h.Recovery != nil {
+		h.cacheActionIntent(resolvedTabID, req)
+	}
+
 	result, err := h.Bridge.ExecuteAction(tCtx, req.Kind, req)
 	if err != nil && req.Ref != "" && shouldRetryStaleRef(err) {
 		recordStaleRefRetry()
@@ -147,6 +153,24 @@ func (h *Handlers) HandleAction(w http.ResponseWriter, r *http.Request) {
 				req.NodeID = nid
 				result, err = h.Bridge.ExecuteAction(tCtx, req.Kind, req)
 			}
+		}
+	}
+	// Semantic self-healing: if stale-ref retry still failed, attempt
+	// recovery via the semantic matcher.
+	var recoveryResult *semantic.RecoveryResult
+	if err != nil && req.Ref != "" && h.Recovery != nil && h.Recovery.ShouldAttempt(err, req.Ref) {
+		rr, actionRes, recoveryErr := h.Recovery.AttemptWithClassification(
+			tCtx, resolvedTabID, req.Ref, req.Kind,
+			semantic.ClassifyFailure(err),
+			func(ctx context.Context, kind string, nodeID int64) (map[string]any, error) {
+				req.NodeID = nodeID
+				return h.Bridge.ExecuteAction(ctx, kind, req)
+			},
+		)
+		recoveryResult = &rr
+		if recoveryErr == nil {
+			result = actionRes
+			err = nil
 		}
 	}
 	if err != nil {
@@ -161,7 +185,11 @@ func (h *Handlers) HandleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	web.JSON(w, 200, map[string]any{"success": true, "result": result})
+	resp := map[string]any{"success": true, "result": result}
+	if recoveryResult != nil {
+		resp["recovery"] = recoveryResult
+	}
+	web.JSON(w, 200, resp)
 }
 
 // HandleTabAction performs a single action on a tab identified by path ID.
@@ -342,6 +370,11 @@ func (h *Handlers) handleActionsBatch(w http.ResponseWriter, r *http.Request, re
 			continue
 		}
 
+		// Cache intent before execution so recovery can reconstruct the query.
+		if action.Ref != "" && h.Recovery != nil {
+			h.cacheActionIntent(resolvedTabID, action)
+		}
+
 		actionRes, err := h.Bridge.ExecuteAction(tCtx, action.Kind, action)
 		if err != nil && action.Ref != "" && shouldRetryStaleRef(err) {
 			recordStaleRefRetry()
@@ -351,6 +384,22 @@ func (h *Handlers) handleActionsBatch(w http.ResponseWriter, r *http.Request, re
 					action.NodeID = nid
 					actionRes, err = h.Bridge.ExecuteAction(tCtx, action.Kind, action)
 				}
+			}
+		}
+		// Semantic self-healing for batched actions.
+		if err != nil && action.Ref != "" && h.Recovery != nil && h.Recovery.ShouldAttempt(err, action.Ref) {
+			rr, recRes, recErr := h.Recovery.AttemptWithClassification(
+				tCtx, resolvedTabID, action.Ref, action.Kind,
+				semantic.ClassifyFailure(err),
+				func(ctx context.Context, kind string, nodeID int64) (map[string]any, error) {
+					action.NodeID = nodeID
+					return h.Bridge.ExecuteAction(ctx, kind, action)
+				},
+			)
+			_ = rr // recovery metadata not surfaced per-action in batch
+			if recErr == nil {
+				actionRes = recRes
+				err = nil
 			}
 		}
 		tCancel()
@@ -419,6 +468,11 @@ func (h *Handlers) HandleMacro(w http.ResponseWriter, r *http.Request) {
 		if step.TabID == "" {
 			step.TabID = resolvedTabID
 		}
+		// Cache intent before execution so recovery can reconstruct the query.
+		if step.Ref != "" && h.Recovery != nil {
+			h.cacheActionIntent(resolvedTabID, step)
+		}
+
 		tCtx, cancel := context.WithTimeout(ctx, stepTimeout)
 		res, err := h.Bridge.ExecuteAction(tCtx, step.Kind, step)
 		if err != nil && step.Ref != "" && shouldRetryStaleRef(err) {
@@ -429,6 +483,22 @@ func (h *Handlers) HandleMacro(w http.ResponseWriter, r *http.Request) {
 					step.NodeID = nid
 					res, err = h.Bridge.ExecuteAction(tCtx, step.Kind, step)
 				}
+			}
+		}
+		// Semantic self-healing for macro steps.
+		if err != nil && step.Ref != "" && h.Recovery != nil && h.Recovery.ShouldAttempt(err, step.Ref) {
+			rr, recRes, recErr := h.Recovery.AttemptWithClassification(
+				tCtx, resolvedTabID, step.Ref, step.Kind,
+				semantic.ClassifyFailure(err),
+				func(ctx context.Context, kind string, nodeID int64) (map[string]any, error) {
+					step.NodeID = nodeID
+					return h.Bridge.ExecuteAction(ctx, kind, step)
+				},
+			)
+			_ = rr
+			if recErr == nil {
+				res = recRes
+				err = nil
 			}
 		}
 		cancel()
@@ -459,6 +529,31 @@ func countSuccessful(results []actionResult) int {
 		}
 	}
 	return count
+}
+
+// cacheActionIntent stores the element's semantic identity in the
+// IntentCache so the recovery engine can reconstruct a query if the
+// ref becomes stale.
+func (h *Handlers) cacheActionIntent(tabID string, req bridge.ActionRequest) {
+	if h.Recovery == nil || req.Ref == "" {
+		return
+	}
+	desc := semantic.ElementDescriptor{Ref: req.Ref}
+	// Try to enrich from the current snapshot cache.
+	if cache := h.Bridge.GetRefCache(tabID); cache != nil {
+		for _, n := range cache.Nodes {
+			if n.Ref == req.Ref {
+				desc.Role = n.Role
+				desc.Name = n.Name
+				desc.Value = n.Value
+				break
+			}
+		}
+	}
+	h.Recovery.RecordIntent(tabID, req.Ref, semantic.IntentEntry{
+		Descriptor: desc,
+		CachedAt:   time.Now(),
+	})
 }
 
 func shouldRetryStaleRef(err error) bool {
