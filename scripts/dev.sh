@@ -12,5 +12,4 @@ echo "🔨 Building Go..."
 go build -o pinchtab ./cmd/pinchtab
 
 # Run
-echo "🦀 Starting PinchTab..."
 exec ./pinchtab "$@"
