@@ -96,55 +96,41 @@ run_unit_tests() {
 }
 
 # Run integration tests with live progress counter
+# Pipes go test -json directly for real-time output
 # Usage: run_integration_tests <json_file> <go test args...>
 run_integration_tests() {
   local json_file="$1"; shift
   local exit_code=0
+  local count=0
 
-  if $HAS_GOTESTSUM; then
-    # Run gotestsum, capture JSON, stream progress from events
-    gotestsum --format standard-quiet --jsonfile "$json_file" -- "$@" 2>&1 &
-    local pid=$!
+  # Stream JSON events from go test, tee to file, show live progress
+  go test -json "$@" 2>&1 | tee "$json_file" | while IFS= read -r line; do
+    local action test_name
+    action=$(echo "$line" | jq -r '.Action // empty' 2>/dev/null) || continue
+    test_name=$(echo "$line" | jq -r '.Test // empty' 2>/dev/null) || continue
 
-    # Wait for JSON file to appear
-    while [ ! -f "$json_file" ] && kill -0 $pid 2>/dev/null; do sleep 0.1; done
+    [ -z "$test_name" ] && continue
 
-    # Tail the JSON file and show progress
-    local count=0 last_test=""
-    tail -f "$json_file" 2>/dev/null | while IFS= read -r line; do
-      # Check if gotestsum is still running
-      kill -0 $pid 2>/dev/null || break
-
-      local action test_name
-      action=$(echo "$line" | jq -r '.Action // empty' 2>/dev/null)
-      test_name=$(echo "$line" | jq -r '.Test // empty' 2>/dev/null)
-
-      if [ -n "$test_name" ]; then
-        case "$action" in
-          run)
-            printf "\r    ${MUTED}▸ %s${NC}%-20s" "$test_name" ""
-            ;;
-          pass)
-            count=$((count + 1))
-            printf "\r    ${SUCCESS}✓${NC} ${MUTED}[%d]${NC} %s%-20s\n" "$count" "$test_name" ""
-            ;;
-          fail)
-            count=$((count + 1))
-            printf "\r    ${ERROR}✗${NC} ${MUTED}[%d]${NC} %s%-20s\n" "$count" "$test_name" ""
-            ;;
-          skip)
-            count=$((count + 1))
-            printf "\r    ${ACCENT}·${NC} ${MUTED}[%d]${NC} %s ${MUTED}(skip)${NC}%-10s\n" "$count" "$test_name" ""
-            ;;
-        esac
-      fi
-    done
-
-    wait $pid 2>/dev/null || exit_code=$?
-    printf "\r%-60s\r" ""  # clear last line
-  else
-    go test "$@" 2>&1 | grep -E '^(ok|FAIL|---) ' || exit_code=${PIPESTATUS[0]}
-  fi
+    case "$action" in
+      run)
+        printf "\r    ${MUTED}▸ %s${NC}%*s" "$test_name" $((50 - ${#test_name})) ""
+        ;;
+      pass)
+        count=$((count + 1))
+        printf "\r    ${SUCCESS}✓${NC} ${MUTED}[%d]${NC} %s%*s\n" "$count" "$test_name" $((40 - ${#test_name})) ""
+        ;;
+      fail)
+        count=$((count + 1))
+        printf "\r    ${ERROR}✗${NC} ${MUTED}[%d]${NC} %s%*s\n" "$count" "$test_name" $((40 - ${#test_name})) ""
+        ;;
+      skip)
+        count=$((count + 1))
+        printf "\r    ${ACCENT}·${NC} ${MUTED}[%d]${NC} %s ${MUTED}(skip)${NC}%*s\n" "$count" "$test_name" $((30 - ${#test_name})) ""
+        ;;
+    esac
+  done
+  exit_code=${PIPESTATUS[0]}
+  printf "\r%*s\r" 60 ""  # clear last line
 
   return $exit_code
 }
