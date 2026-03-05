@@ -97,7 +97,10 @@ func (h *Handlers) HandleSnapshot(w http.ResponseWriter, r *http.Request) {
 	go web.CancelOnClientDone(r.Context(), tCancel)
 
 	if reqNoAnim && !h.Config.NoAnimations {
-		bridge.DisableAnimationsOnce(tCtx)
+		if err := bridge.DisableAnimationsOnce(tCtx); err != nil {
+			web.Error(w, 500, fmt.Errorf("disable animations: %w", err))
+			return
+		}
 	}
 
 	var rawResult json.RawMessage

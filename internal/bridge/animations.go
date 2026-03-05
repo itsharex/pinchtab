@@ -20,8 +20,8 @@ const DisableAnimationsCSS = `
 
 // InjectNoAnimations adds a persistent script (via CDP) that disables CSS
 // animations on every document load. Used when BRIDGE_NO_ANIMATIONS=true.
-func (b *Bridge) InjectNoAnimations(ctx context.Context) {
-	_ = chromedp.Run(ctx,
+func (b *Bridge) InjectNoAnimations(ctx context.Context) error {
+	return chromedp.Run(ctx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, err := page.AddScriptToEvaluateOnNewDocument(DisableAnimationsCSS).Do(ctx)
 			return err
@@ -37,8 +37,8 @@ func (b *Bridge) InjectNoAnimations(ctx context.Context) {
 
 // DisableAnimationsOnce runs the animation-disabling CSS on the current page
 // (one-shot, for per-request ?noAnimations=true).
-func DisableAnimationsOnce(ctx context.Context) {
-	_ = chromedp.Run(ctx,
+func DisableAnimationsOnce(ctx context.Context) error {
+	return chromedp.Run(ctx,
 		chromedp.Evaluate(DisableAnimationsCSS, nil),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			return emulation.SetEmulatedMedia().

@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -24,5 +25,24 @@ func TestInjectNoAnimations(t *testing.T) {
 	b := &Bridge{Config: cfg}
 	if b.Config.NoAnimations != true {
 		t.Error("Expected NoAnimations to be true")
+	}
+}
+
+func TestDisableAnimationsOnceReturnsErrorWhenContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := DisableAnimationsOnce(ctx); err == nil {
+		t.Fatal("expected error for canceled context")
+	}
+}
+
+func TestInjectNoAnimationsReturnsErrorWhenContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	b := &Bridge{}
+	if err := b.InjectNoAnimations(ctx); err == nil {
+		t.Fatal("expected error for canceled context")
 	}
 }

@@ -84,7 +84,9 @@ func (b *Bridge) tabSetup(ctx context.Context) {
 	}
 	b.injectStealth(ctx)
 	if b.Config.NoAnimations {
-		b.InjectNoAnimations(ctx)
+		if err := b.InjectNoAnimations(ctx); err != nil {
+			slog.Warn("no-animations injection failed", "err", err)
+		}
 	}
 }
 
