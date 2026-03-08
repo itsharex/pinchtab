@@ -61,6 +61,10 @@ func (h *Handlers) HandleFind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if pathID := r.PathValue("id"); pathID != "" {
+		req.TabID = pathID
+	}
+
 	req.Query = strings.TrimSpace(req.Query)
 	if req.Query == "" {
 		web.Error(w, 400, fmt.Errorf("missing required field 'query'"))

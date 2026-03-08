@@ -126,6 +126,7 @@ func (h *Handlers) RegisterRoutes(mux *http.ServeMux, doShutdown func()) {
 	mux.HandleFunc("POST /tabs/{id}/upload", h.HandleTabUpload)
 	mux.HandleFunc("GET /download", h.HandleDownload)
 	mux.HandleFunc("POST /upload", h.HandleUpload)
+	mux.HandleFunc("POST /tabs/{id}/find", h.HandleFind)
 	mux.HandleFunc("POST /find", h.HandleFind)
 	mux.HandleFunc("GET /screencast", h.HandleScreencast)
 	mux.HandleFunc("GET /screencast/tabs", h.HandleScreencastAll)

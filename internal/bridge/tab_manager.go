@@ -127,6 +127,30 @@ func (tm *TabManager) TabContext(tabID string) (context.Context, string, error) 
 	tm.mu.RUnlock()
 
 	if !ok {
+		// Attempt to auto-track the tab if it's open but untracked
+		targets, err := tm.ListTargets()
+		if err == nil {
+			for _, t := range targets {
+				raw := string(t.TargetID)
+				if tm.idMgr.TabIDFromCDPTarget(raw) == tabID {
+					// Initialize context and register it
+					ctx, cancel := chromedp.NewContext(tm.browserCtx, chromedp.WithTargetID(target.ID(raw)))
+					if tm.onTabSetup != nil {
+						tm.onTabSetup(ctx)
+					}
+					tm.RegisterTabWithCancel(tabID, raw, ctx, cancel)
+					
+					tm.mu.RLock()
+					entry = tm.tabs[tabID]
+					tm.mu.RUnlock()
+					ok = true
+					break
+				}
+			}
+		}
+	}
+
+	if !ok {
 		return nil, "", fmt.Errorf("tab %s not found", tabID)
 	}
 
