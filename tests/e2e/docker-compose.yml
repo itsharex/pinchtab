@@ -5,6 +5,8 @@ services:
       dockerfile: tests/e2e/Dockerfile.pinchtab
     ports:
       - "9999:9999"
+    # Chrome needs more shared memory in Docker
+    shm_size: '2gb'
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:9999/health"]
       interval: 3s

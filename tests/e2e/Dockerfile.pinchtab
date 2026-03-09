@@ -33,12 +33,13 @@ COPY --from=builder /build/pinchtab /usr/local/bin/pinchtab
 USER pinchtab
 WORKDIR /data
 
-# Environment variables for headless Chrome
+# Environment variables for headless Chrome in Docker
 ENV PINCHTAB_BIND=0.0.0.0 \
     PINCHTAB_PORT=9999 \
     PINCHTAB_HEADLESS=true \
     PINCHTAB_STATE_DIR=/data \
-    CHROME_BIN=/usr/bin/chromium-browser
+    CHROME_BIN=/usr/bin/chromium-browser \
+    CHROME_FLAGS="--no-sandbox --disable-dev-shm-usage --disable-gpu"
 
 EXPOSE 9999
 
