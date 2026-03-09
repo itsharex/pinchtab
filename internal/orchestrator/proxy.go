@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -130,7 +131,7 @@ func (o *Orchestrator) proxyToURL(w http.ResponseWriter, r *http.Request, target
 	}
 
 	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(readResponseBody(resp))
+	_, _ = io.Copy(w, resp.Body)
 }
 
 // findRunningInstanceByTabID finds the instance that owns the given tab.
@@ -179,24 +180,6 @@ func (o *Orchestrator) handleProxyScreencast(w http.ResponseWriter, r *http.Requ
 
 	// Use WebSocket proxy for proper upgrade
 	handlers.ProxyWebSocket(w, r, targetURL)
-}
-
-func readResponseBody(resp *http.Response) []byte {
-	if resp.Body == nil {
-		return []byte{}
-	}
-	body := make([]byte, 0)
-	buf := make([]byte, 4096)
-	for {
-		n, err := resp.Body.Read(buf)
-		if n > 0 {
-			body = append(body, buf[:n]...)
-		}
-		if err != nil {
-			break
-		}
-	}
-	return body
 }
 
 // classifyLaunchError returns appropriate HTTP status code for launch errors.
