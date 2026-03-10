@@ -43,10 +43,10 @@ cd ..
 rm -rf internal/dashboard/dashboard/assets/
 rm -f internal/dashboard/dashboard/dashboard.html
 
-# Copy React build
+# Copy React build and rename entry HTML.
+# Vite always outputs index.html; Go's embed serves it as dashboard.html to
+# avoid http.FileServer's automatic index.html handling at /dashboard/.
 cp -r dashboard/dist/* internal/dashboard/dashboard/
-
-# Rename index.html to dashboard.html (Go expects this)
 mv internal/dashboard/dashboard/index.html internal/dashboard/dashboard/dashboard.html
 
 echo "✅ Dashboard built: internal/dashboard/dashboard/"

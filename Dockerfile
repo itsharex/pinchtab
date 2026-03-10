@@ -8,9 +8,9 @@ COPY dashboard/ .
 RUN bun run build
 
 # Stage 2: Compile the Go binary.
-# Dashboard dist is embedded into the binary via Go's embed package.
-# The rename to dashboard.html avoids a conflict with the Go embed server's
-# own index route — the dashboard handler serves it explicitly.
+# Dashboard dist is embedded via Go's embed package.
+# Vite always outputs index.html; rename to dashboard.html so it doesn't
+# collide with http.FileServer's automatic index.html handling at /dashboard/.
 FROM golang:1.26-alpine3.21 AS builder
 RUN apk add --no-cache git
 WORKDIR /build
