@@ -15,27 +15,14 @@ Or directly:
 docker compose -f tests/e2e/docker-compose.yml up --build
 ```
 
-### Local (without Docker)
-
-Requires: pinchtab binary, python3 or node
-
-```bash
-./pdev e2e local
-```
-
-Or directly:
-```bash
-go build -o pinchtab ./cmd/pinchtab
-./tests/e2e/run-local.sh
-```
-
 ## Architecture
 
 ```
 tests/e2e/
 ├── docker-compose.yml      # Orchestrates all services
-├── Dockerfile.pinchtab     # Builds pinchtab with Chrome
-├── run-local.sh            # Local runner (no Docker)
+├── config/                 # E2E-specific PinchTab configs
+│   ├── pinchtab.json
+│   └── pinchtab-secure.json
 ├── fixtures/               # Static HTML test pages
 │   ├── index.html
 │   ├── form.html
@@ -54,6 +41,8 @@ tests/e2e/
 │   └── Dockerfile
 └── results/                # Test output (gitignored)
 ```
+
+The Docker stack reuses the repository root `Dockerfile` and mounts explicit config files with `PINCHTAB_CONFIG` instead of maintaining separate e2e-only images.
 
 ## Test Scenarios
 

@@ -3,13 +3,19 @@ services:
   pinchtab:
     build:
       context: ../..
-      dockerfile: tests/e2e/Dockerfile.pinchtab
+      dockerfile: Dockerfile
+    environment:
+      PINCHTAB_CONFIG: /config/pinchtab.json
+      PINCHTAB_PORT: "9999"
+      CHROME_BIN: /usr/bin/chromium
+    volumes:
+      - ./config/pinchtab.json:/config/pinchtab.json:ro
     ports:
       - "9999:9999"
     # Chrome needs more shared memory in Docker
     shm_size: '2gb'
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9999/health"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9999/health"]
       interval: 3s
       timeout: 10s
       retries: 20
@@ -19,12 +25,18 @@ services:
   pinchtab-secure:
     build:
       context: ../..
-      dockerfile: tests/e2e/Dockerfile.pinchtab-secure
+      dockerfile: Dockerfile
+    environment:
+      PINCHTAB_CONFIG: /config/pinchtab-secure.json
+      PINCHTAB_PORT: "9999"
+      CHROME_BIN: /usr/bin/chromium
+    volumes:
+      - ./config/pinchtab-secure.json:/config/pinchtab-secure.json:ro
     ports:
       - "9998:9999"
     shm_size: '2gb'
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9999/health"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9999/health"]
       interval: 3s
       timeout: 10s
       retries: 20
@@ -35,7 +47,7 @@ services:
     volumes:
       - ./fixtures:/usr/share/nginx/html:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/"]
       interval: 2s
       timeout: 5s
       retries: 5

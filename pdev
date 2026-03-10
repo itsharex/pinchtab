@@ -26,7 +26,6 @@ COMMANDS=(
   "  system:🔬:System tests only"
   "doctor:🩺:Setup dev environment"
   "e2e:🐳:E2E tests (Docker)"
-  "  e2e local:🐳:E2E tests (local)"
   "check go:🧪:Go only"
   "check dashboard:🧪:Dashboard only"
   "check security:🧪:Gosec security scan"
@@ -103,17 +102,17 @@ run_command() {
       echo ""
       exec bash scripts/test.sh all
       ;;
-    "unit")
+    "test unit"|"unit")
       echo "  ${ACCENT}${BOLD}🔬 Unit tests${NC}"
       echo ""
       exec bash scripts/test.sh unit
       ;;
-    "integration")
+    "test integration"|"integration")
       echo "  ${ACCENT}${BOLD}🔬 Integration tests${NC}"
       echo ""
       exec bash scripts/test.sh integration
       ;;
-    "system")
+    "test system"|"system")
       echo "  ${ACCENT}${BOLD}🔬 System tests${NC}"
       echo ""
       exec bash scripts/test.sh system
@@ -123,12 +122,8 @@ run_command() {
       echo ""
       exec docker compose -f tests/e2e/docker-compose.yml up --build --abort-on-container-exit
       ;;
-    "e2e local")
-      echo "  ${ACCENT}${BOLD}🐳 E2E tests (local)${NC}"
-      echo ""
-      exec bash tests/e2e/run-local.sh
-      ;;
     "build")        exec bash scripts/dev.sh ;;
+    "run")          exec bash scripts/run.sh ;;
     "doctor")       exec bash scripts/doctor.sh ;;
     "hooks")        exec bash scripts/install-hooks.sh ;;
     *)

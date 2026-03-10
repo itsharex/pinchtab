@@ -1,0 +1,25 @@
+{
+  "server": {
+    "bind": "0.0.0.0",
+    "port": "9999"
+  },
+  "browser": {
+    "extraFlags": "--no-sandbox --disable-dev-shm-usage"
+  },
+  "instanceDefaults": {
+    "maxTabs": 10,
+    "tabEvictionPolicy": "close_lru"
+  },
+  "security": {
+    "allowEvaluate": false,
+    "allowDownload": false,
+    "allowUpload": false,
+    "idpi": {
+      "enabled": true,
+      "strictMode": true,
+      "allowedDomains": [
+        "internal-test.invalid"
+      ]
+    }
+  }
+}
