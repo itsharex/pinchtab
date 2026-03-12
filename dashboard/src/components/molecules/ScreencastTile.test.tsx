@@ -2,7 +2,9 @@ import { render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ScreencastTile from "./ScreencastTile";
 
-const webSocketMock = vi.fn(function MockWebSocket(this: Record<string, unknown>) {
+const webSocketMock = vi.fn(function MockWebSocket(
+  this: Record<string, unknown>,
+) {
   this.close = vi.fn();
 });
 
@@ -14,9 +16,9 @@ describe("ScreencastTile", () => {
       new URL("https://browser.zakirov.dev/dashboard/profiles"),
     );
     window.localStorage.setItem("pinchtab.auth.token", "secret-token");
-    vi
-      .spyOn(HTMLCanvasElement.prototype, "getContext")
-      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
     vi.stubGlobal("WebSocket", webSocketMock);
   });
 
