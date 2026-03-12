@@ -15,12 +15,12 @@ PINCHTAB_URL="${PINCHTAB_URL:-http://localhost:9999}"
 FIXTURES_URL="${FIXTURES_URL:-http://localhost:8080}"
 RESULTS_DIR="${RESULTS_DIR:-/results}"
 
-# Test tracking
-TESTS_PASSED=0
-TESTS_FAILED=0
-ASSERTIONS_PASSED=0
-ASSERTIONS_FAILED=0
-CURRENT_TEST=""
+# Test tracking (preserve across sourced scripts)
+TESTS_PASSED="${TESTS_PASSED:-0}"
+TESTS_FAILED="${TESTS_FAILED:-0}"
+ASSERTIONS_PASSED="${ASSERTIONS_PASSED:-0}"
+ASSERTIONS_FAILED="${ASSERTIONS_FAILED:-0}"
+CURRENT_TEST="${CURRENT_TEST:-}"
 
 # ─────────────────────────────────────────────────────────────────
 # Wait for instance ready (same as curl-based tests)
