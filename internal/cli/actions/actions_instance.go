@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/pinchtab/pinchtab/internal/cli"
 	"github.com/pinchtab/pinchtab/internal/cli/apiclient"
+	"github.com/spf13/cobra"
 	"net/http"
 )
 
@@ -55,6 +56,20 @@ func InstanceStart(client *http.Client, base, token string, args []string) {
 	// Use new /instances/start endpoint if available, fall back to /instances/launch for backward compat
 	endpoint := "/instances/start"
 	apiclient.DoPost(client, base, token, endpoint, body)
+}
+
+func InstanceStartWithFlags(client *http.Client, base, token string, cmd *cobra.Command) {
+	body := map[string]any{}
+	if v, _ := cmd.Flags().GetString("profileId"); v != "" {
+		body["profileId"] = v
+	}
+	if v, _ := cmd.Flags().GetString("mode"); v != "" {
+		body["mode"] = v
+	}
+	if v, _ := cmd.Flags().GetString("port"); v != "" {
+		body["port"] = v
+	}
+	apiclient.DoPost(client, base, token, "/instances/start", body)
 }
 
 func InstanceNavigate(client *http.Client, base, token string, args []string) {

@@ -368,17 +368,22 @@ func init() {
 	rootCmd.AddCommand(selectCmd)
 
 	instanceCmd.GroupID = "management"
-	instanceCmd.AddCommand(&cobra.Command{
-		Use:   "start <name>",
+	
+	startInstanceCmd := &cobra.Command{
+		Use:   "start",
 		Short: "Start a browser instance",
-		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			cfg := config.Load()
 			runCLIWith(cfg, func(client *http.Client, base, token string) {
-				browseractions.InstanceStart(client, base, token, args)
+				browseractions.InstanceStartWithFlags(client, base, token, cmd)
 			})
 		},
-	})
+	}
+	startInstanceCmd.Flags().String("profileId", "", "Profile ID to use")
+	startInstanceCmd.Flags().String("mode", "", "Instance mode")
+	startInstanceCmd.Flags().String("port", "", "Port number")
+	instanceCmd.AddCommand(startInstanceCmd)
+	
 	instanceCmd.AddCommand(&cobra.Command{
 		Use:   "navigate <id> <url>",
 		Short: "Navigate an instance to a URL",
