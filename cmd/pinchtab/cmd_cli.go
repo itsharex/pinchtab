@@ -25,10 +25,10 @@ var quickCmd = &cobra.Command{
 }
 
 var navCmd = &cobra.Command{
-	Use:        "nav <url>",
-	Short:      "Navigate to URL (alias for open)",
-	Deprecated: "use 'open' instead",
-	Args:  cobra.ExactArgs(1),
+	Use:    "nav <url>",
+	Short:  "Navigate to URL",
+	Hidden: true,
+	Args:   cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Load()
 		runCLIWith(cfg, func(client *http.Client, base, token string) {
@@ -101,8 +101,9 @@ var openCmd = &cobra.Command{
 }
 
 var tabsCmd = &cobra.Command{
-	Use:   "tabs",
-	Short: "List or manage tabs",
+	Use:     "tab",
+	Aliases: []string{"tabs"},
+	Short:   "List or manage tabs",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Load()
 		runCLIWith(cfg, func(client *http.Client, base, token string) {

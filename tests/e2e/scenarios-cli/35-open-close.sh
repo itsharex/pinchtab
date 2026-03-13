@@ -49,10 +49,10 @@ assert_output_contains "tabId" "navigate works as alias"
 end_test
 
 # ─────────────────────────────────────────────────────────────────
-start_test "pinchtab nav <url> (deprecated alias)"
+start_test "pinchtab nav <url> (hidden alias)"
 
 pt_ok nav "${FIXTURES_URL}/index.html"
 assert_output_json
-assert_output_contains "tabId" "nav still works as deprecated alias"
+assert_output_contains "tabId" "nav still works as hidden alias"
 
 end_test

@@ -9,7 +9,7 @@ start_test "pinchtab tabs (list)"
 # Create a tab first
 pt_ok nav "${FIXTURES_URL}/index.html"
 
-pt_ok tabs
+pt_ok tab
 assert_output_json
 assert_output_contains "tabs" "returns tabs array"
 
@@ -21,10 +21,10 @@ start_test "pinchtab tabs close <id>"
 pt_ok nav "${FIXTURES_URL}/form.html"
 TAB_ID=$(echo "$PT_OUT" | jq -r '.tabId')
 
-pt_ok tabs close "$TAB_ID"
+pt_ok tab close "$TAB_ID"
 
 # Verify tab is gone
-pt_ok tabs
+pt_ok tab
 assert_output_not_contains "$TAB_ID" "tab was closed"
 
 end_test

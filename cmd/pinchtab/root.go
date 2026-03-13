@@ -18,7 +18,7 @@ var rootCmd = &cobra.Command{
 	Long: `PinchTab provides a lightweight, API-driven way for AI agents to control 
 browsers, manage tabs, and perform interactive tasks.`,
 	Example: `  pinchtab server
-  pinchtab nav https://pinchtab.com`,
+  pinchtab open https://pinchtab.com`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Load()
 

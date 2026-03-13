@@ -16,7 +16,7 @@ for i in $(seq 1 $MAX_TABS); do
   TAB_IDS+=($(echo "$PT_OUT" | jq -r '.tabId'))
 done
 
-pt_ok tabs
+pt_ok tab
 TAB_COUNT=$(echo "$PT_OUT" | jq '.tabs | length')
 if [ "$TAB_COUNT" -ge "$MAX_TABS" ]; then
   echo -e "  ${GREEN}✓${NC} $TAB_COUNT tabs open (>= $MAX_TABS)"
@@ -35,7 +35,7 @@ FIRST_TAB="${TAB_IDS[0]}"
 sleep 1
 pt_ok nav "${FIXTURES_URL}/index.html?t=overflow"
 
-pt_ok tabs
+pt_ok tab
 assert_output_not_contains "$FIRST_TAB" "oldest tab evicted (LRU)"
 
 end_test
