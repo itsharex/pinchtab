@@ -25,6 +25,7 @@
     "allowUpload": true,
     "idpi": {
       "enabled": true,
+      "scanContent": true,
       "allowedDomains": [
         "localhost",
         "127.0.0.1",

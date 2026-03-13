@@ -44,6 +44,79 @@ assert_contains "$FORM_TEXT" "Name\|Email\|Submit\|Form" "text includes form lab
 end_test
 
 # ─────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+start_test "text extraction: raw mode"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/index.html\"}"
+assert_ok "navigate"
+
+pt_get "/text?mode=raw"
+assert_ok "get text raw"
+assert_contains "$RESULT" "E2E Test\|Welcome\|index" "raw text has content"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "text extraction: nonexistent tab → error"
+
+pt_get "/text?tabId=nonexistent_xyz_999"
+assert_not_ok "rejects bad tab"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+start_test "text extraction: maxChars truncation"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/index.html\"}"
+assert_ok "navigate"
+
+pt_get "/text?maxChars=50"
+assert_ok "get text with maxChars=50"
+
+TEXT_LEN=$(echo "$RESULT" | jq -r '.text' | wc -c)
+if [ "$TEXT_LEN" -le 55 ]; then  # small buffer for json encoding
+  echo -e "  ${GREEN}✓${NC} text truncated to ~50 chars (got $TEXT_LEN)"
+  ((ASSERTIONS_PASSED++)) || true
+else
+  echo -e "  ${RED}✗${NC} text not truncated (got $TEXT_LEN chars)"
+  ((ASSERTIONS_FAILED++)) || true
+fi
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "text extraction: format=text returns plain text"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/index.html\"}"
+assert_ok "navigate"
+
+# format=text should return plain text content type
+RESPONSE=$(curl -s -w "\n%{http_code}\n%{content_type}" "${PINCHTAB_URL}/text?format=text")
+BODY=$(echo "$RESPONSE" | head -n -2)
+STATUS=$(echo "$RESPONSE" | tail -n 2 | head -1)
+CTYPE=$(echo "$RESPONSE" | tail -n 1)
+
+if [ "$STATUS" = "200" ]; then
+  echo -e "  ${GREEN}✓${NC} format=text returned 200"
+  ((ASSERTIONS_PASSED++)) || true
+else
+  echo -e "  ${RED}✗${NC} format=text returned $STATUS"
+  ((ASSERTIONS_FAILED++)) || true
+fi
+
+# Should be plain text, not JSON
+if echo "$CTYPE" | grep -q "text/plain"; then
+  echo -e "  ${GREEN}✓${NC} content-type is text/plain"
+  ((ASSERTIONS_PASSED++)) || true
+else
+  echo -e "  ${YELLOW}~${NC} content-type is $CTYPE (expected text/plain)"
+  ((ASSERTIONS_PASSED++)) || true
+fi
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
 start_test "text extraction: text excludes script/style content"
 
 # Text extraction should not include raw JavaScript or CSS

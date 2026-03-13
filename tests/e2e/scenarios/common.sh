@@ -100,43 +100,6 @@ end_test() {
   ASSERTIONS_FAILED=0
 }
 
-# Assert HTTP status
-assert_status() {
-  local expected="$1"
-  local url="$2"
-  local method="${3:-GET}"
-  local body="${4:-}"
-  
-  local actual
-  if [ -n "$body" ]; then
-    actual=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" -H "Content-Type: application/json" -d "$body" "$url")
-  else
-    actual=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" "$url")
-  fi
-  
-  if [ "$actual" = "$expected" ]; then
-    echo -e "  ${GREEN}✓${NC} $method $url → $actual"
-    ((ASSERTIONS_PASSED++)) || true
-  else
-    echo -e "  ${RED}✗${NC} $method $url → $actual (expected $expected)"
-    ((ASSERTIONS_FAILED++)) || true
-  fi
-}
-
-# Assert command succeeds (exit 0)
-assert_ok() {
-  local desc="$1"
-  shift
-  
-  if "$@" >/dev/null 2>&1; then
-    echo -e "  ${GREEN}✓${NC} $desc"
-    ((ASSERTIONS_PASSED++)) || true
-  else
-    echo -e "  ${RED}✗${NC} $desc (exit $?)"
-    ((ASSERTIONS_FAILED++)) || true
-  fi
-}
-
 # Assert JSON field equals value
 assert_json_eq() {
   local json="$1"
@@ -359,6 +322,49 @@ pt_post() {
   echo "$RESULT"
 }
 
+pt_patch() {
+  local path="$1"
+  local body="$2"
+  echo -e "${BLUE}→ curl -X PATCH ${PINCHTAB_URL}$path${NC}" >&2
+  local response
+  response=$(curl -s -w "\n%{http_code}" \
+    -X PATCH \
+    "${PINCHTAB_URL}$path" \
+    -H "Content-Type: application/json" \
+    -d "$body")
+  RESULT=$(echo "$response" | head -n -1)
+  HTTP_STATUS=$(echo "$response" | tail -n 1)
+  echo "$RESULT"
+}
+
+pt_delete() {
+  local path="$1"
+  echo -e "${BLUE}→ curl -X DELETE ${PINCHTAB_URL}$path${NC}" >&2
+  local response
+  response=$(curl -s -w "\n%{http_code}" \
+    -X DELETE \
+    "${PINCHTAB_URL}$path")
+  RESULT=$(echo "$response" | head -n -1)
+  HTTP_STATUS=$(echo "$response" | tail -n 1)
+  echo "$RESULT"
+}
+
+# POST raw body (for testing malformed JSON)
+pt_post_raw() {
+  local path="$1"
+  local body="$2"
+  echo -e "${BLUE}→ curl -X POST ${PINCHTAB_URL}$path -d '$body'${NC}" >&2
+  local response
+  response=$(curl -s -w "\n%{http_code}" \
+    -X POST \
+    "${PINCHTAB_URL}$path" \
+    -H "Content-Type: application/json" \
+    -d "$body")
+  RESULT=$(echo "$response" | head -n -1)
+  HTTP_STATUS=$(echo "$response" | tail -n 1)
+  echo "$RESULT"
+}
+
 # ================================================================
 # URL accessibility checks
 # ================================================================
@@ -388,12 +394,6 @@ assert_fixtures_accessible() {
 # ================================================================
 # Skip helper
 # ================================================================
-
-skip() {
-  local reason="$1"
-  echo -e "  ${YELLOW}⚠${NC} Skipped: $reason"
-  ((ASSERTIONS_PASSED++)) || true
-}
 
 # ================================================================
 # HTTP status assertions
@@ -426,29 +426,31 @@ assert_http_status() {
   fi
 }
 
+# Assert last request returned non-200 status (error expected)
+assert_not_ok() {
+  local label="${1:-request}"
+  
+  if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ]; then
+    echo -e "  ${GREEN}✓${NC} $label → $HTTP_STATUS (error expected)"
+    ((ASSERTIONS_PASSED++)) || true
+  else
+    echo -e "  ${RED}✗${NC} $label: expected error, got $HTTP_STATUS"
+    ((ASSERTIONS_FAILED++)) || true
+  fi
+}
+
 # ================================================================
 # Element interaction helpers
 # ================================================================
 
-# Get ref for element by name from last snapshot
-get_ref() {
-  local name="$1"
-  echo "$RESULT" | jq -r ".nodes[] | select(.name == \"$name\") | .ref" | head -1
-}
-
-# Get ref for element by role from last snapshot
-get_ref_by_role() {
-  local role="$1"
-  echo "$RESULT" | jq -r ".nodes[] | select(.role == \"$role\") | .ref" | head -1
-}
-
 # Click a button by name (requires snapshot in $RESULT)
 click_button() {
   local name="$1"
-  local ref=$(get_ref "$name")
+  local ref
+  ref=$(echo "$RESULT" | jq -r ".nodes[] | select(.name == \"$name\") | .ref" | head -1)
   
   if [ -n "$ref" ] && [ "$ref" != "null" ]; then
-    pt_post /action -d "{\"kind\":\"click\",\"ref\":\"${ref}\"}" > /dev/null
+    pt_post /action "{\"kind\":\"click\",\"ref\":\"${ref}\"}" > /dev/null
     echo -e "  ${GREEN}✓${NC} clicked '$name' (ref: $ref)"
     ((ASSERTIONS_PASSED++)) || true
   else
@@ -461,13 +463,16 @@ click_button() {
 type_into() {
   local name="$1"
   local text="$2"
-  local ref=$(get_ref "$name")
+  local ref
+  ref=$(echo "$RESULT" | jq -r ".nodes[] | select(.name == \"$name\") | .ref" | head -1)
   
-  # Fallback to role if name not found
-  [ -z "$ref" ] || [ "$ref" = "null" ] && ref=$(get_ref_by_role "textbox")
+  # Fallback to textbox role if name not found
+  if [ -z "$ref" ] || [ "$ref" = "null" ]; then
+    ref=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "textbox") | .ref' | head -1)
+  fi
   
   if [ -n "$ref" ] && [ "$ref" != "null" ]; then
-    pt_post /action -d "{\"kind\":\"type\",\"ref\":\"${ref}\",\"text\":\"${text}\"}" > /dev/null
+    pt_post /action "{\"kind\":\"type\",\"ref\":\"${ref}\",\"text\":\"${text}\"}" > /dev/null
     echo -e "  ${GREEN}✓${NC} typed '$text' into '$name' (ref: $ref)"
     ((ASSERTIONS_PASSED++)) || true
   else
@@ -501,11 +506,6 @@ get_tab_id() {
 # Get first tab ID from /tabs response
 get_first_tab() {
   echo "$RESULT" | jq -r '.tabs[0].id'
-}
-
-# Get last tab ID from /tabs response  
-get_last_tab() {
-  echo "$RESULT" | jq -r '.tabs[-1].id'
 }
 
 # Print tab ID (truncated for readability)
@@ -647,22 +647,33 @@ print_summary() {
   echo -e "${BLUE}E2E Test Summary${NC}"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
-  printf "  %-40s %10s %10s\n" "Test" "Duration" "Status"
-  echo "  ────────────────────────────────────────────────────────"
+  # Calculate column width from longest test name (min 40, pad +2)
+  local name_width=40
+  for result in "${TEST_RESULTS[@]}"; do
+    IFS='|' read -r name _ _ <<< "$result"
+    local len=${#name}
+    [ "$len" -gt "$name_width" ] && name_width=$len
+  done
+  ((name_width += 2)) || true
+  local line_width=$((name_width + 24))
+  local separator=$(printf '─%.0s' $(seq 1 $line_width))
+
+  printf "  %-${name_width}s %10s %10s\n" "Test" "Duration" "Status"
+  echo "  ${separator}"
   
   for result in "${TEST_RESULTS[@]}"; do
     IFS='|' read -r name duration status <<< "$result"
     local time_num=${duration%ms}
     ((total_time += time_num)) || true
     if [ "$status" = "passed" ]; then
-      printf "  %-40s %10s ${GREEN}%10s${NC}\n" "$name" "$duration" "✓"
+      printf "  %-${name_width}s %10s ${GREEN}%10s${NC}\n" "$name" "$duration" "✓"
     else
-      printf "  %-40s %10s ${RED}%10s${NC}\n" "$name" "$duration" "✗"
+      printf "  %-${name_width}s %10s ${RED}%10s${NC}\n" "$name" "$duration" "✗"
     fi
   done
   
-  echo "  ────────────────────────────────────────────────────────"
-  printf "  %-40s %10s\n" "Total" "${total_time}ms"
+  echo "  ${separator}"
+  printf "  %-${name_width}s %10s\n" "Total" "${total_time}ms"
   echo ""
   echo -e "  ${GREEN}Passed:${NC} ${TESTS_PASSED}/${total}"
   echo -e "  ${RED}Failed:${NC} ${TESTS_FAILED}/${total}"

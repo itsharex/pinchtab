@@ -67,3 +67,98 @@ pt_get "/snapshot?selector=#username"
 assert_ok "snapshot with selector"
 
 end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "pinchtab scroll (down)"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/table.html\"}"
+assert_ok "navigate"
+
+pt_post /action '{"kind":"scroll","direction":"down"}'
+assert_ok "scroll down"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "pinchtab hover (ref)"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/buttons.html\"}"
+assert_ok "navigate"
+
+# Get snapshot, find a button ref
+pt_get /snapshot
+assert_ok "snapshot"
+REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "button") | .ref' | head -1)
+
+pt_post /action "{\"kind\":\"hover\",\"ref\":\"${REF}\"}"
+assert_ok "hover on button"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "pinchtab focus (ref)"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/form.html\"}"
+assert_ok "navigate"
+
+pt_get /snapshot
+REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "textbox") | .ref' | head -1)
+
+pt_post /action "{\"kind\":\"focus\",\"ref\":\"${REF}\"}"
+assert_ok "focus on input"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "pinchtab select (combobox)"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/form.html\"}"
+assert_ok "navigate"
+
+pt_get /snapshot
+REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "combobox") | .ref' | head -1)
+
+pt_post /action "{\"kind\":\"select\",\"ref\":\"${REF}\",\"value\":\"uk\"}"
+assert_ok "select option"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "pinchtab fill (sets value + verifiable)"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/form.html\"}"
+assert_ok "navigate"
+
+pt_get /snapshot
+REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "textbox") | .ref' | head -1)
+
+pt_post /action "{\"kind\":\"fill\",\"ref\":\"${REF}\",\"text\":\"e2e_fill_test\"}"
+assert_ok "fill input"
+
+# Verify value was set
+pt_post /evaluate '{"expression":"document.querySelector(\"#username\").value"}'
+assert_ok "evaluate"
+assert_json_contains "$RESULT" '.result' 'e2e_fill_test' "fill value persisted"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "pinchtab click triggers navigation"
+
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/index.html\"}"
+assert_ok "navigate"
+
+# Get a link ref
+pt_get "/snapshot?filter=interactive"
+REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "link") | .ref' | head -1)
+
+if [ -n "$REF" ] && [ "$REF" != "null" ]; then
+  pt_post /action "{\"kind\":\"click\",\"ref\":\"${REF}\",\"waitNav\":true}"
+  assert_ok "click link with waitNav"
+else
+  # No link on index.html — use CSS selector on an anchor if present
+  pt_post /action '{"kind":"click","selector":"a","waitNav":true}'
+  assert_ok "click anchor with waitNav"
+fi
+
+end_test

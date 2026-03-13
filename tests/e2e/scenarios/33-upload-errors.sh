@@ -1,45 +1,42 @@
 #!/bin/bash
-# 03-actions.sh — CLI action commands (click, fill, press)
+# 33-upload-errors.sh — Upload error cases
+# Migrated from: tests/integration/upload_test.go (UP6-UP9, UP11)
 
 source "$(dirname "$0")/common.sh"
 
-# ─────────────────────────────────────────────────────────────────
-start_test "pinchtab fill <selector> <text>"
+pt_post /navigate "{\"url\":\"${FIXTURES_URL}/upload.html\"}"
+assert_ok "navigate"
+sleep 1
 
-pt_ok nav "${FIXTURES_URL}/form.html"
-pt_ok fill "#username" "hello world"
-assert_output_contains "filled" "confirms fill action"
+# ─────────────────────────────────────────────────────────────────
+start_test "upload: default selector"
+
+FILE_CONTENT="data:text/plain;base64,SGVsbG8="
+pt_post /upload "{\"files\":[\"${FILE_CONTENT}\"]}"
+assert_ok "upload with default selector"
 
 end_test
 
 # ─────────────────────────────────────────────────────────────────
-start_test "pinchtab press <key>"
+start_test "upload: invalid selector → error"
 
-pt_ok press Tab
-# Just verify command succeeds
-
-end_test
-
-# ─────────────────────────────────────────────────────────────────
-start_test "pinchtab scroll down"
-
-pt_ok nav "${FIXTURES_URL}/table.html"
-pt_ok scroll down
+pt_post /upload '{"selector":"#nonexistent","files":["data:text/plain;base64,SGVsbG8="]}'
+assert_not_ok "rejects invalid selector"
 
 end_test
 
 # ─────────────────────────────────────────────────────────────────
-start_test "pinchtab hover <ref>"
+start_test "upload: missing files → error"
 
-pt_ok nav "${FIXTURES_URL}/buttons.html"
-pt_ok snap
-# Extract a button ref from snapshot
-REF=$(echo "$PT_OUT" | grep -oE 'e[0-9]+' | head -1)
-if [ -n "$REF" ]; then
-  pt_ok hover "$REF"
-else
-  echo -e "  ${YELLOW}⚠${NC} no ref found, skipping hover"
-  ((ASSERTIONS_PASSED++)) || true
-fi
+pt_post /upload '{"selector":"#single-file"}'
+assert_not_ok "rejects missing files"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "upload: bad JSON → error"
+
+pt_post_raw /upload "{broken"
+assert_http_status "400" "rejects bad JSON"
 
 end_test

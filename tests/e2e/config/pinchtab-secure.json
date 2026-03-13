@@ -25,6 +25,7 @@
     "allowUpload": false,
     "idpi": {
       "enabled": true,
+      "scanContent": true,
       "strictMode": true,
       "allowedDomains": [
         "internal-test.invalid",

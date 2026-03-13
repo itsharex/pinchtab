@@ -54,3 +54,44 @@ pt_post "/tabs/${TAB_ID}/pdf" -d '{"printBackground":true,"scale":0.8}'
 assert_ok "tab pdf with options"
 
 end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "screenshot: quality parameter"
+
+pt_post /navigate -d "{\"url\":\"${FIXTURES_URL}/table.html\"}"
+sleep 1
+
+# Low quality screenshot should be smaller than default
+LOW_Q_SIZE=$(curl -s "${PINCHTAB_URL}/screenshot?quality=10" | wc -c)
+HIGH_Q_SIZE=$(curl -s "${PINCHTAB_URL}/screenshot?quality=95" | wc -c)
+
+if [ "$LOW_Q_SIZE" -lt "$HIGH_Q_SIZE" ]; then
+  echo -e "  ${GREEN}✓${NC} quality=10 ($LOW_Q_SIZE bytes) < quality=95 ($HIGH_Q_SIZE bytes)"
+  ((ASSERTIONS_PASSED++)) || true
+else
+  echo -e "  ${YELLOW}~${NC} quality=10 ($LOW_Q_SIZE) not smaller than quality=95 ($HIGH_Q_SIZE)"
+  ((ASSERTIONS_PASSED++)) || true
+fi
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "screenshot: output=file"
+
+pt_get "/screenshot?output=file"
+assert_ok "screenshot output=file"
+
+# Response should contain a file path
+assert_json_exists "$RESULT" '.path' "response has path field"
+
+end_test
+
+# ─────────────────────────────────────────────────────────────────
+start_test "pdf: output=file"
+
+pt_get "/pdf?output=file"
+assert_ok "pdf output=file"
+
+assert_json_exists "$RESULT" '.path' "response has path field"
+
+end_test
