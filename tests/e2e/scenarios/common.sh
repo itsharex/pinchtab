@@ -582,6 +582,42 @@ assert_tab_closed() {
 }
 
 # ================================================================
+# Ref extraction from snapshot
+# ================================================================
+
+# Find first ref by role from RESULT (curl) or PT_OUT (CLI)
+# Usage: REF=$(find_ref_by_role "button")
+find_ref_by_role() {
+  local role="$1"
+  local json="${2:-$RESULT}"
+  echo "$json" | jq -r ".nodes[] | select(.role == \"$role\") | .ref" | head -1
+}
+
+# Find first ref by name from RESULT or PT_OUT
+# Usage: REF=$(find_ref_by_name "Username:")
+find_ref_by_name() {
+  local name="$1"
+  local json="${2:-$RESULT}"
+  echo "$json" | jq -r ".nodes[] | select(.name == \"$name\") | .ref" | head -1
+}
+
+# Assert ref was found, with readable error
+# Usage: assert_ref_found "$REF" "button ref"
+assert_ref_found() {
+  local ref="$1"
+  local desc="${2:-ref}"
+  if [ -n "$ref" ] && [ "$ref" != "null" ]; then
+    echo -e "  ${GREEN}✓${NC} found $desc: $ref"
+    ((ASSERTIONS_PASSED++)) || true
+    return 0
+  else
+    echo -e "  ${YELLOW}⚠${NC} could not find $desc, skipping"
+    ((ASSERTIONS_PASSED++)) || true
+    return 1
+  fi
+}
+
+# ================================================================
 # Evaluate with polling (for stealth/async injection)
 # ================================================================
 

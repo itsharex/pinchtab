@@ -38,7 +38,6 @@ start_test "pinchtab click (CSS selector)"
 pt_post /navigate -d "{\"url\":\"${FIXTURES_URL}/buttons.html\"}"
 sleep 1
 
-# Click using CSS selector instead of ref
 pt_post /action -d '{"kind":"click","selector":"#increment"}'
 assert_ok "click by selector"
 
@@ -50,7 +49,6 @@ start_test "pinchtab type (CSS selector)"
 pt_post /navigate -d "{\"url\":\"${FIXTURES_URL}/form.html\"}"
 sleep 1
 
-# Type using CSS selector
 pt_post /action -d '{"kind":"type","selector":"#username","text":"selectortest"}'
 assert_ok "type by selector"
 
@@ -62,7 +60,6 @@ start_test "pinchtab snapshot (CSS selector filter)"
 pt_post /navigate -d "{\"url\":\"${FIXTURES_URL}/form.html\"}"
 sleep 1
 
-# Get snapshot scoped to a specific element
 pt_get "/snapshot?selector=#username"
 assert_ok "snapshot with selector"
 
@@ -85,10 +82,10 @@ start_test "pinchtab hover (ref)"
 pt_post /navigate "{\"url\":\"${FIXTURES_URL}/buttons.html\"}"
 assert_ok "navigate"
 
-# Get snapshot, find a button ref
 pt_get /snapshot
 assert_ok "snapshot"
-REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "button") | .ref' | head -1)
+REF=$(find_ref_by_role "button")
+assert_ref_found "$REF" "button ref"
 
 pt_post /action "{\"kind\":\"hover\",\"ref\":\"${REF}\"}"
 assert_ok "hover on button"
@@ -102,7 +99,8 @@ pt_post /navigate "{\"url\":\"${FIXTURES_URL}/form.html\"}"
 assert_ok "navigate"
 
 pt_get /snapshot
-REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "textbox") | .ref' | head -1)
+REF=$(find_ref_by_role "textbox")
+assert_ref_found "$REF" "textbox ref"
 
 pt_post /action "{\"kind\":\"focus\",\"ref\":\"${REF}\"}"
 assert_ok "focus on input"
@@ -116,7 +114,8 @@ pt_post /navigate "{\"url\":\"${FIXTURES_URL}/form.html\"}"
 assert_ok "navigate"
 
 pt_get /snapshot
-REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "combobox") | .ref' | head -1)
+REF=$(find_ref_by_role "combobox")
+assert_ref_found "$REF" "combobox ref"
 
 pt_post /action "{\"kind\":\"select\",\"ref\":\"${REF}\",\"value\":\"uk\"}"
 assert_ok "select option"
@@ -130,12 +129,12 @@ pt_post /navigate "{\"url\":\"${FIXTURES_URL}/form.html\"}"
 assert_ok "navigate"
 
 pt_get /snapshot
-REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "textbox") | .ref' | head -1)
+REF=$(find_ref_by_role "textbox")
+assert_ref_found "$REF" "textbox ref"
 
 pt_post /action "{\"kind\":\"fill\",\"ref\":\"${REF}\",\"text\":\"e2e_fill_test\"}"
 assert_ok "fill input"
 
-# Verify value was set
 pt_post /evaluate '{"expression":"document.querySelector(\"#username\").value"}'
 assert_ok "evaluate"
 assert_json_contains "$RESULT" '.result' 'e2e_fill_test' "fill value persisted"
@@ -148,15 +147,13 @@ start_test "pinchtab click triggers navigation"
 pt_post /navigate "{\"url\":\"${FIXTURES_URL}/index.html\"}"
 assert_ok "navigate"
 
-# Get a link ref
 pt_get "/snapshot?filter=interactive"
-REF=$(echo "$RESULT" | jq -r '.nodes[] | select(.role == "link") | .ref' | head -1)
+REF=$(find_ref_by_role "link")
 
-if [ -n "$REF" ] && [ "$REF" != "null" ]; then
+if assert_ref_found "$REF" "link ref"; then
   pt_post /action "{\"kind\":\"click\",\"ref\":\"${REF}\",\"waitNav\":true}"
   assert_ok "click link with waitNav"
 else
-  # No link on index.html — use CSS selector on an anchor if present
   pt_post /action '{"kind":"click","selector":"a","waitNav":true}'
   assert_ok "click anchor with waitNav"
 fi
