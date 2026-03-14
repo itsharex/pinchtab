@@ -378,6 +378,74 @@ func TestHandleCookies(t *testing.T) {
 	}
 }
 
+func TestHandleConnectProfileRunning(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/profiles/work/instance" {
+			t.Fatalf("path = %s, want /profiles/work/instance", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"name":    "work",
+			"running": true,
+			"status":  "running",
+			"port":    "9868",
+			"id":      "inst_123",
+		})
+	}))
+	defer srv.Close()
+
+	r := callTool(t, "pinchtab_connect_profile", map[string]any{
+		"profile": "work",
+	}, srv)
+
+	text := resultText(t, r)
+	if !strings.Contains(text, `"profile": "work"`) {
+		t.Fatalf("expected profile in response, got %s", text)
+	}
+	if !strings.Contains(text, `"url": "`+srv.URL+`/dashboard/profiles"`) {
+		t.Fatalf("expected dashboard URL in response, got %s", text)
+	}
+}
+
+func TestHandleConnectProfileNotRunning(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"name":    "work",
+			"running": false,
+			"status":  "stopped",
+			"port":    "",
+			"id":      "",
+		})
+	}))
+	defer srv.Close()
+
+	r := callTool(t, "pinchtab_connect_profile", map[string]any{
+		"profile": "work",
+	}, srv)
+
+	text := resultText(t, r)
+	if !strings.Contains(text, `"running": false`) {
+		t.Fatalf("expected running=false in response, got %s", text)
+	}
+	if strings.Contains(text, `"url":`) {
+		t.Fatalf("did not expect url in stopped response, got %s", text)
+	}
+	if !strings.Contains(text, `does not have a running instance`) {
+		t.Fatalf("expected no-instance message, got %s", text)
+	}
+}
+
+func TestHandleConnectProfileMissingProfile(t *testing.T) {
+	srv := mockPinchTab()
+	defer srv.Close()
+
+	r := callTool(t, "pinchtab_connect_profile", map[string]any{}, srv)
+	if !r.IsError {
+		t.Fatal("expected error for missing profile")
+	}
+}
+
 func TestHandleWait(t *testing.T) {
 	srv := mockPinchTab()
 	defer srv.Close()

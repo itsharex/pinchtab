@@ -39,10 +39,11 @@ func handlerMap(c *Client) map[string]func(context.Context, mcp.CallToolRequest)
 		"pinchtab_find": handleFind(c),
 
 		// Tab management
-		"pinchtab_list_tabs": handleListTabs(c),
-		"pinchtab_close_tab": handleCloseTab(c),
-		"pinchtab_health":    handleHealth(c),
-		"pinchtab_cookies":   handleCookies(c),
+		"pinchtab_list_tabs":       handleListTabs(c),
+		"pinchtab_close_tab":       handleCloseTab(c),
+		"pinchtab_health":          handleHealth(c),
+		"pinchtab_cookies":         handleCookies(c),
+		"pinchtab_connect_profile": handleConnectProfile(c),
 
 		// Utility
 		"pinchtab_wait":              handleWait(),
@@ -70,6 +71,23 @@ func optBool(r mcp.CallToolRequest, key string) (bool, bool) {
 func resultFromBytes(body []byte, code int) (*mcp.CallToolResult, error) {
 	if code >= 400 {
 		return mcp.NewToolResultError(fmt.Sprintf("HTTP %d: %s", code, string(body))), nil
+	}
+	return mcp.NewToolResultText(string(body)), nil
+}
+
+type profileInstanceStatus struct {
+	Name    string `json:"name"`
+	Running bool   `json:"running"`
+	Status  string `json:"status"`
+	Port    string `json:"port"`
+	ID      string `json:"id"`
+	Error   string `json:"error"`
+}
+
+func jsonResult(v any) (*mcp.CallToolResult, error) {
+	body, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("encode response: %v", err)), nil
 	}
 	return mcp.NewToolResultText(string(body)), nil
 }
@@ -344,6 +362,51 @@ func handleCookies(c *Client) func(context.Context, mcp.CallToolRequest) (*mcp.C
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		return resultFromBytes(body, code)
+	}
+}
+
+func handleConnectProfile(c *Client) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		profile, err := r.RequireString("profile")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		body, code, err := c.Get(ctx, c.profileInstancePath(profile), nil)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		if code >= 400 {
+			return resultFromBytes(body, code)
+		}
+
+		var status profileInstanceStatus
+		if err := json.Unmarshal(body, &status); err != nil {
+			return resultFromBytes(body, code)
+		}
+
+		resp := map[string]any{
+			"profile": status.Name,
+			"running": status.Running,
+			"status":  status.Status,
+			"id":      status.ID,
+			"port":    status.Port,
+		}
+		if status.Error != "" {
+			resp["error"] = status.Error
+		}
+		if status.Running && status.Port != "" {
+			resp["url"] = c.dashboardProfilesURL()
+			resp["message"] = fmt.Sprintf("Open the dashboard to access the running profile %q.", status.Name)
+			return jsonResult(resp)
+		}
+
+		if status.Status == "starting" {
+			resp["message"] = fmt.Sprintf("Profile %q is starting; no connect URL is available yet.", status.Name)
+		} else {
+			resp["message"] = fmt.Sprintf("Profile %q does not have a running instance.", status.Name)
+		}
+		return jsonResult(resp)
 	}
 }
 

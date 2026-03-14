@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -32,6 +33,14 @@ func NewClient(baseURL, token string) *Client {
 
 func (c *Client) url(path string) string {
 	return c.BaseURL + path
+}
+
+func (c *Client) profileInstancePath(profile string) string {
+	return "/profiles/" + url.PathEscape(profile) + "/instance"
+}
+
+func (c *Client) dashboardProfilesURL() string {
+	return strings.TrimRight(c.BaseURL, "/") + "/dashboard/profiles"
 }
 
 func (c *Client) do(req *http.Request) ([]byte, int, error) {

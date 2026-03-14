@@ -38,6 +38,9 @@ func TestTextRaw(t *testing.T) {
 	if !strings.Contains(m.lastQuery, "mode=raw") {
 		t.Errorf("expected mode=raw, got %s", m.lastQuery)
 	}
+	if !strings.Contains(m.lastQuery, "format=text") {
+		t.Errorf("expected format=text, got %s", m.lastQuery)
+	}
 }
 
 func TestTextTab(t *testing.T) {

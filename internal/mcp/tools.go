@@ -110,6 +110,10 @@ func allTools() []mcp.Tool {
 			mcp.WithDescription("Get cookies for the current page"),
 			mcp.WithString("tabId", mcp.Description("Target tab ID")),
 		),
+		mcp.NewTool("pinchtab_connect_profile",
+			mcp.WithDescription("Get the user-facing connect URL and instance status for a profile"),
+			mcp.WithString("profile", mcp.Required(), mcp.Description("Profile name or profile ID")),
+		),
 
 		// ── Utility ─────────────────────────────────────────────────
 		mcp.NewTool("pinchtab_wait",

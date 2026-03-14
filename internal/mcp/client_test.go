@@ -139,3 +139,21 @@ func TestClientAuthHeaderAbsentWhenNoToken(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestClientProfileInstancePath(t *testing.T) {
+	c := NewClient("http://localhost:9867", "")
+	got := c.profileInstancePath("work profile")
+	want := "/profiles/work%20profile/instance"
+	if got != want {
+		t.Fatalf("profileInstancePath = %q, want %q", got, want)
+	}
+}
+
+func TestClientDashboardProfilesURL(t *testing.T) {
+	c := NewClient("http://localhost:9867/", "")
+	got := c.dashboardProfilesURL()
+	want := "http://localhost:9867/dashboard/profiles"
+	if got != want {
+		t.Fatalf("dashboardProfilesURL = %q, want %q", got, want)
+	}
+}
