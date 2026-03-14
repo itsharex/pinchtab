@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/pinchtab/pinchtab/internal/bridge"
 	"github.com/pinchtab/pinchtab/internal/handlers"
 	"github.com/pinchtab/pinchtab/internal/web"
 )
@@ -24,39 +25,45 @@ func (o *Orchestrator) proxyTabRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	proxyToInstance := func(inst *bridge.Instance) {
+		targetURL := &url.URL{
+			Scheme:   "http",
+			Host:     net.JoinHostPort("localhost", inst.Port),
+			Path:     r.URL.Path,
+			RawQuery: r.URL.RawQuery,
+		}
+		o.proxyToURL(w, r, targetURL)
+	}
+
 	// Fast path: Locator cache hit
 	if o.instanceMgr != nil {
 		if inst, err := o.instanceMgr.FindInstanceByTabID(tabID); err == nil {
-			targetURL := &url.URL{
-				Scheme:   "http",
-				Host:     net.JoinHostPort("localhost", inst.Port),
-				Path:     r.URL.Path,
-				RawQuery: r.URL.RawQuery,
-			}
-			o.proxyToURL(w, r, targetURL)
+			proxyToInstance(inst)
 			return
 		}
 	}
 
 	// Slow path: legacy lookup
 	inst, err := o.findRunningInstanceByTabID(tabID)
-	if err != nil {
-		web.Error(w, 404, err)
+	if err == nil {
+		// Cache for future O(1) lookups
+		if o.instanceMgr != nil {
+			o.instanceMgr.Locator.Register(tabID, inst.ID)
+		}
+		proxyToInstance(&inst.Instance)
 		return
 	}
 
-	// Cache for future O(1) lookups
-	if o.instanceMgr != nil {
-		o.instanceMgr.Locator.Register(tabID, inst.ID)
+	// Fallback: when exactly one instance is running, proxy to it even if
+	// the dashboard-side tab lookup failed. This lets the child bridge resolve
+	// the tab ID directly and avoids false 404s when the dashboard's cached or
+	// listed tab IDs momentarily diverge from the child bridge's registry.
+	if only := o.singleRunningInstance(); only != nil {
+		proxyToInstance(&only.Instance)
+		return
 	}
 
-	targetURL := &url.URL{
-		Scheme:   "http",
-		Host:     net.JoinHostPort("localhost", inst.Port),
-		Path:     r.URL.Path,
-		RawQuery: r.URL.RawQuery,
-	}
-	o.proxyToURL(w, r, targetURL)
+	web.Error(w, 404, err)
 }
 
 // proxyToInstance proxies a request to a specific instance by ID in the path.
@@ -192,4 +199,21 @@ func classifyLaunchError(err error) int {
 		return 409 // Conflict - resource already exists
 	}
 	return 500 // Internal Server Error
+}
+
+func (o *Orchestrator) singleRunningInstance() *InstanceInternal {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	var only *InstanceInternal
+	for _, inst := range o.instances {
+		if inst.Status != "running" || !instanceIsActive(inst) {
+			continue
+		}
+		if only != nil {
+			return nil
+		}
+		only = inst
+	}
+	return only
 }

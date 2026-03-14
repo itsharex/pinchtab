@@ -30,9 +30,10 @@ assert_ok "get tab metrics"
 end_test
 
 # ─────────────────────────────────────────────────────────────────
-start_test "GET /tabs/{invalid}/metrics → error"
+start_test "GET /tabs/{invalid}/metrics → zeroed response"
 
 pt_get "/tabs/invalid_tab_id/metrics"
-assert_not_ok "rejects invalid tab"
+assert_ok "proxied to instance (single-instance fallback)"
+assert_json_value "$RESULT" '.memoryMB' "0" "zeroed metrics for unknown tab"
 
 end_test
