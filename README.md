@@ -155,6 +155,11 @@ Most users should not need to think about `pinchtab bridge` directly, and only n
 curl -fsSL https://pinchtab.com/install.sh | bash
 ```
 
+**Homebrew (macOS / Linux):**
+```bash
+brew install pinchtab/tap/pinchtab
+```
+
 **npm:**
 ```bash
 npm install -g pinchtab
