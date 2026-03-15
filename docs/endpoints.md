@@ -18,11 +18,25 @@ GET  /api/events                         # SSE event stream (dashboard)
 ```
 POST /navigate                           # Navigate current tab to URL
 GET  /navigate?url=<url>                 # Navigate (GET variant)
-GET  /nav?url=<url>                      # Navigate (short alias)
+
 POST /tabs/{id}/navigate                 # Navigate a specific tab
 ```
 
 Body: `{"url": "...", "timeout": 60, "blockImages": true, "newTab": true, "blockAds": true}`
+
+## History & Reload
+
+```
+POST /back                               # Go back in current tab
+POST /back?tabId=<id>                    # Go back in specific tab
+POST /tabs/{id}/back                     # Go back (tab-scoped)
+POST /forward                            # Go forward in current tab
+POST /forward?tabId=<id>                 # Go forward in specific tab
+POST /tabs/{id}/forward                  # Go forward (tab-scoped)
+POST /reload                             # Reload current tab
+POST /reload?tabId=<id>                  # Reload specific tab
+POST /tabs/{id}/reload                   # Reload (tab-scoped)
+```
 
 ## Tab Management
 
